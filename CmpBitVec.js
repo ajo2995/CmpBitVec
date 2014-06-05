@@ -317,6 +317,9 @@ CmpBitVec.prototype.not = function() {
             // toggle MSB
             resi32[i+3]  = (this.words[i] < 0) ? this.words[i] & _magic[x7FFFFFFF] : this.words[i] | _magic[x80000000];
         }
+        else {
+            resi32[i+3] = ~resi32[i+3];
+        }
     }
     var result = new CmpBitVec();
     result.load(resBuffer);
