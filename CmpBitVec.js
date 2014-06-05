@@ -1,10 +1,11 @@
-var _magic = Int32Array(6);
+var _magic = Int32Array(7);
 _magic[0] = 0x00000000;
 _magic[1] = 0xFFFFFFFF;
 _magic[2] = 0x80000000;
 _magic[3] = 0x80000001;
 _magic[4] = 0x7FFFFFFF;
 _magic[5] = 0x00000001;
+_magic[6] = 0x00000000; // free space
 
 var x00000000 = 0;
 var xFFFFFFFF = 1;
@@ -12,12 +13,26 @@ var x80000000 = 2;
 var x80000001 = 3;
 var x7FFFFFFF = 4;
 var x00000001 = 5;
+var freeSpace = 6;
 
 function popcount(v) {
     v = v - ((v >>> 1) & 0x55555555);
     v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
     return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
 }
+
+function ctz(v) {
+    var c = 32;
+    v &= -v;
+    if (v) c--;
+    if (v & 0x0000FFFF) c -= 16;
+    if (v & 0x00FF00FF) c -= 8;
+    if (v & 0x0F0F0F0F) c -= 4;
+    if (v & 0x33333333) c -= 2;
+    if (v & 0x55555555) c -= 1;
+    return c;
+}
+
 
 var CmpBitVec = exports.CmpBitVec = function () {
     this.size = 0;
@@ -100,6 +115,15 @@ CmpBitVec.prototype.nextWord = function() {
     this.activeWord.start = this.activeWord.end;
     this.activeWord.type  = this.wordType(this.activeWord.offset);
     this.activeWord.end  += (this.activeWord.type === 2) ?
+        32 : this.words[this.activeWord.offset] << 5;
+};
+
+// move to the previous active word
+CmpBitVec.prototype.prevWord = function() {
+    this.activeWord.offset--;
+    this.activeWord.end = this.activeWord.start;
+    this.activeWord.type = this.wordType(this.activeWord.offset);
+    this.activeWord.start -= (this.activeWord.type === 2) ?
         32 : this.words[this.activeWord.offset] << 5;
 };
 
@@ -325,3 +349,23 @@ CmpBitVec.prototype.not = function() {
     result.load(resBuffer);
     return result;
 };
+
+CmpBitVec.prototype.scan(wordStart) {
+    if ((this.activeWord.start <= wordStart) && (wordStart < this.activeWord.end)) return;
+    while (this.activeWord.end <= wordStart) this.nextWord();
+    while (this.activeWord.start > wordStart) this.prevWord();
+}
+
+CmpBitVec.prototype.nextSetBit(pos) {
+    if (pos > this.size) return -1;
+    this.scan(pos);
+    if (this.activeWord.type === 2) {
+        _magic[freeSpace] = this.words[this.activeWord.offset] & (_magic[xFFFFFFFF] << (pos - this.activeWord.start));
+
+        if (_magic[freeSpace] === 0) return this.nextSetBit(this.activeWord.end);
+        else return this.activeWord.start + ctz(_magic[freeSpace]);
+    }
+    else if (this.activeWord.type === 1) return pos;
+    else return this.nextsetBit(this.activeWord.end);
+};
+
