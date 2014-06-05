@@ -325,8 +325,57 @@ CmpBitVec.prototype.and = function(that) {
     return res;
 };
 
-CmpBitVec.prototype.or = function(rhs) {
-    
+CmpBitVec.prototype.or = function(that) {
+    var res = new CmpBitVec();
+    this.begin();
+    that.begin();
+    while (this.activeWord.offset < this.nwords && that.activeWord.offset < that.nwords) {
+        // advance until words overlap
+        while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
+        while (that.activeWord.end <= this.activeWord.start) { that.nextWord(); }
+        // compare overlapping words
+        if (this.activeWord.type === 0) { // 0-fill
+            if (that.activeWord.type === 0) { // 0-fill vs 0-fill
+                if (this.activeWord.end <= that.activeWord.end) {
+                    res.appendFill0(this.activeWord.end - res.size);
+                    this.nextWord();
+                }
+                else {
+                    res.appendFill0(that.activeWord.end - res.size);
+                    that.nextWord();
+                }
+            }
+            else if (that.activeWord.type === 1) { // 0-fill vs 1-fill
+                res.appendFill1(that.activeWord.end - res.size);
+                that.nextWord();
+            }
+            else if (that.activeWord.type === 2)  { // 0-fill vs literal
+                res.appendWord(that.words[that.activeWord.offset]);
+                that.nextWord();
+            }
+        }
+        else if (this.activeWord.type === 1) { // 1-fill
+            res.appendWord(this.words[this.activeWord.offset]);
+            this.nextWord();
+        }
+        else if (this.activeWord.type === 2) { // literal
+            if (that.activeWord.type === 0) { // literal vs 0-fill
+                res.appendWord(this.words[this.activeWord.offset]);
+                this.nextWord();
+            }
+            else if (that.activeWord.type === 1) { // literal vs 1-fill
+                res.appendFill1(that.activeWord.end - res.size);
+                that.nextWord();
+            }
+            else if (that.activeWord.type === 2) { // literal vs literal
+                res.appendWord(this.words[this.activeWord.offset] | that.words[that.activeWord.offset]);
+                this.nextWord();
+                that.nextWord();
+            }
+        }
+    }
+    res.pack();
+    return res;
 };
 
 CmpBitVec.prototype.not = function() {
@@ -350,13 +399,13 @@ CmpBitVec.prototype.not = function() {
     return result;
 };
 
-CmpBitVec.prototype.scan(wordStart) {
+CmpBitVec.prototype.scan = function(wordStart) {
     if ((this.activeWord.start <= wordStart) && (wordStart < this.activeWord.end)) return;
     while (this.activeWord.end <= wordStart) this.nextWord();
     while (this.activeWord.start > wordStart) this.prevWord();
 }
 
-CmpBitVec.prototype.nextSetBit(pos) {
+CmpBitVec.prototype.nextSetBit = function(pos) {
     if (pos > this.size) return -1;
     this.scan(pos);
     if (this.activeWord.type === 2) {
