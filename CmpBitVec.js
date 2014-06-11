@@ -1,3 +1,4 @@
+(function() {
 var _magic = Int32Array(7);
 _magic[0] = 0x00000000;
 _magic[1] = 0xFFFFFFFF;
@@ -33,41 +34,42 @@ function ctz(v) {
     return c;
 }
 
-
-var CmpBitVec = exports.CmpBitVec = function () {
-    this.size = 0;
-    this.count = 0;
-    this.nwords = 0;
-    this.words = []; // initially, these are typical javascript arrays
-    this.fills = []; // but load() and pack() make them Int32Array views
-    this.activeWord = {
-        offset : 0,  // offset into words array
-        start  : 0,  // first bit in the word
-        end    : 32, // first bit following the word
-        type   : 2   // 0-fill, 1-fill, or literal
-    };
+var CmpBitVec = function() {
     this.packed = false;
+    this.size   = 0;
+    this.count  = 0;
+    this.nwords = 0;
+    this.words  = [];
+    this.fills  = [];
+    this.activeWord = {
+        offset : 0,
+        start  : 0,
+        end    : 32,
+        type   : 2
+    };
+}
 
-    this.isFill = function(i) {
-        return this.fills[i >>> 5] & i & 31;
+CmpBitVec.prototype.isFill = function(i) {
+    return this.fills[i >>> 5] & i & 31;
+};
+
+CmpBitVec.prototype.wordType = function(i) {
+    if (this.isFill) {
+        return (this.words[i] < 0) ? 1 : 0;
+    }
+    return 2;
+};
+
+CmpBitVec.prototype.begin = function() {
+    this.activeWord = {
+        offset : 0,
+        start  : 0,
+        end    : 32,
+        type   : this.wordType(0)
     };
-    this.wordType = function(i) {
-        if (this.isFill) {
-            return (this.words[i] < 0) ? 1 : 0;
-        }
-        return 2;
-    };
-    this.begin = function() {
-        this.activeWord = {
-            offset : 0,
-            start  : 0,
-            end    : 32,
-            type   : this.wordType(0)
-        };
-        if (this.activeWord.type !== 2) {
-            this.activeWord.end = (this.words[0] << 5);
-        }
-    };
+    if (this.activeWord.type !== 2) {
+        this.activeWord.end = (this.words[0] << 5);
+    }
 };
 
 // load a bitvector from an ArrayBuffer
@@ -91,12 +93,13 @@ CmpBitVec.prototype.pack = function() {
     var buf = ArrayBuffer(4*(3 + this.nwords + nfills));
     this.packed = true;
     this.buffer = buf;
-    this.i32    = new Int32Array(buf);
+    var i32    = new Int32Array(buf);
     i32[0]      = this.size;
     i32[1]      = this.count;
     i32[2]      = this.nwords;
     var words   = i32.subarray(3, this.nwords+2);
     var fills   = i32.subarray(3+this.nwords);
+    this.i32 = i32;
     for(var i=0; i<this.nwords; i++) {
         words[i] = this.words[i];
     }
@@ -196,7 +199,7 @@ CmpBitVec.prototype.appendFill0 = function(len) {
         }
     }
     else this.size += len;
-    
+
     var nfills = len >>> 5;
     if (nfills) {
         var mod = this.nwords & 31;
@@ -418,3 +421,5 @@ CmpBitVec.prototype.nextSetBit = function(pos) {
     else return this.nextsetBit(this.activeWord.end);
 };
 
+module.exports = CmpBitVec;
+}())
