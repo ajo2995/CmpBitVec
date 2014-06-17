@@ -77,7 +77,7 @@
         this.size   = i32[0];
         this.count  = i32[1];
         this.nwords = i32[2];
-        this.words  = i32.subarray(3, this.nwords+2);
+        this.words  = i32.subarray(3, this.nwords+3);
         this.fills  = i32.subarray(3+this.nwords);
 
         this.begin();
@@ -408,13 +408,18 @@
         resi32[2] = this.nwords;
         // flip all the bits in each word
         for(var i=0;i<this.nwords;i++) {
-            if (this.fills[i >>> 5] & i & 31) {
+            if (this.isFill(i)) { //fills[i >>> 5] & i & 31) {
                 // toggle MSB
                 resi32[i+3]  = (this.words[i] < 0) ? this.words[i] & _magic[x7FFFFFFF] : this.words[i] | _magic[x80000000];
             }
             else {
                 resi32[i+3] = ~resi32[i+3];
             }
+        }
+        // if the last word is a literal word
+        // mask flipped bits beyond the end of the vector
+        if (!this.isFill(this.nwords-1) && this.size & 31) {
+            resi32[this.nwords + 2] &= _magic[xFFFFFFFF] >>> (32 - (this.size & 31));
         }
         var result = new CmpBitVec();
         result.load(resBuffer);
