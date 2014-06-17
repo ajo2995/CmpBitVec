@@ -93,7 +93,7 @@
         i32[0]      = this.size;
         i32[1]      = this.count;
         i32[2]      = this.nwords;
-        var wordArr = i32.subarray(3, this.nwords+2);
+        var wordArr = i32.subarray(3, this.nwords+3);
         var fillArr = i32.subarray(3+this.nwords);
         for(var i=0; i<this.nwords; i++) {
             wordArr[i] = this.words[i];
