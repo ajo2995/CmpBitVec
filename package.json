@@ -1,0 +1,23 @@
+{
+  "name": "CmpBitVec",
+  "version": "1.0.0",
+  "description": "CmpBitVec =========",
+  "main": "CmpBitVec.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ajo2995/CmpBitVec.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ajo2995/CmpBitVec/issues"
+  },
+  "homepage": "https://github.com/ajo2995/CmpBitVec",
+  "dependencies": {
+    "mocha": "^1.21.4",
+    "should": "^4.0.4"
+  }
+}

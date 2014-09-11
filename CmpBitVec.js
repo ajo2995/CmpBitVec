@@ -10,25 +10,11 @@
     _magic[5] = 0x00000001; var x00000001 = 5;
     _magic[6] = 0x00000000; var freeSpace = 6;
 
-    // counts the number of set bits in a 32 bit word
-    function popcount(v) {
-        v = v - ((v >>> 1) & 0x55555555);
-        v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
-        return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
-    }
-
-    // count trailing zeros in a 32 bit word
-    function ctz(v) {
-        var c = 32;
-        v &= -v;
-        if (v) c--;
-        if (v & 0x0000FFFF) c -= 16;
-        if (v & 0x00FF00FF) c -= 8;
-        if (v & 0x0F0F0F0F) c -= 4;
-        if (v & 0x33333333) c -= 2;
-        if (v & 0x55555555) c -= 1;
-        return c;
-    }
+    // "constants"
+    var TYPE_0_FILL = 0
+      , TYPE_1_FILL = 1
+      , TYPE_LITERAL = 2
+      , TYPE_UNDEFINED = 3;
 
     // constructor
     var CmpBitVec = function() {
@@ -42,22 +28,27 @@
             offset : 0,
             start  : 0,
             end    : 32,
-            type   : 3 // types are 0-fill, 1-fill, and literal (2)
+            type   : TYPE_UNDEFINED // types are 0-fill, 1-fill, literal (2), 3 is undefined
         };
     }
 
-    // check's ith bit in fills
+    // check whether the ith word is a fill
     CmpBitVec.prototype.isFill = function(i) {
-        return (this.fills[i >>> 5] >>> (i & 31)) & 1;
+      if(i < 0 || i >= this.words.length) {
+        throw new Error('Word out of bounds');
+      }
+      return (this.fills[i >>> 5] >>> (i & 31)) & 1;
     };
 
     CmpBitVec.prototype.wordType = function(i) {
-        if (this.isFill) {
-            return (this.words[i] < 0) ? 1 : 0;
+        if (this.isFill(i)) {
+            // if it's fill, all bits are set the same. So we just check the most significant bit.
+            return ((this.words[i] & _magic[x80000000]) === _magic[x80000000]) ? TYPE_1_FILL : TYPE_0_FILL;
         }
-        return 2;
+        return TYPE_LITERAL;
     };
 
+    // Set active word to the first in the CmpBitVec
     CmpBitVec.prototype.begin = function() {
         this.activeWord = {
             offset : 0,
@@ -65,7 +56,7 @@
             end    : 32,
             type   : this.wordType(0)
         };
-        if (this.activeWord.type !== 2) {
+        if (this.activeWord.type !== TYPE_LITERAL) {
             this.activeWord.end = (this.words[0] << 5);
         }
     };
@@ -134,7 +125,7 @@
         this.activeWord.offset++;
         this.activeWord.start = this.activeWord.end;
         this.activeWord.type  = this.wordType(this.activeWord.offset);
-        this.activeWord.end  += (this.activeWord.type === 2) ?
+        this.activeWord.end  += (this.activeWord.type === TYPE_LITERAL) ?
             32 : this.words[this.activeWord.offset] << 5;
     };
 
@@ -143,13 +134,13 @@
         this.activeWord.offset--;
         this.activeWord.end = this.activeWord.start;
         this.activeWord.type = this.wordType(this.activeWord.offset);
-        this.activeWord.start -= (this.activeWord.type === 2) ?
+        this.activeWord.start -= (this.activeWord.type === TYPE_LITERAL) ?
             32 : this.words[this.activeWord.offset] << 5;
     };
 
     CmpBitVec.prototype.appendWord = function(word) {
         if (word === _magic[x00000000]) { // 0-fill
-            if (this.activeWord.type === 0) { // extends previous 0-fill
+            if (this.activeWord.type === TYPE_0_FILL) { // extends previous 0-fill
                 this.words[this.activeWord.offset]++;
             }
             else { // append a 0-fill
@@ -162,11 +153,11 @@
                 }
                 this.words.push(_magic[x00000001]);
                 this.nwords++;
-                this.activeWord.type = 0;
+                this.activeWord.type = TYPE_0_FILL;
             }
         }
         else if (word === _magic[xFFFFFFFF]) { // 1-fill
-            if (this.activeWord.type === 1) { // extends previous 1-fill
+            if (this.activeWord.type === TYPE_1_FILL) { // extends previous 1-fill
                 this.words[activeWord.offset]++;
             }
             else { // append a 1-fill
@@ -179,7 +170,7 @@
                 }
                 this.words.push(_magic[x80000001]);
                 this.nwords++;
-                this.activeWord.type = 1;
+                this.activeWord.type = TYPE_1_FILL;
                 this.count += 32;
             }
         }
@@ -189,8 +180,8 @@
             }
             this.words.push(word);
             this.nwords++;
-            this.activeWord.type = 2;
-            this.count += popcount(word);
+            this.activeWord.type = TYPE_LITERAL;
+            this.count += this.popcount(word);
         }
         this.activeWord.offset = this.nwords-1;
         this.activeWord.start  = this.size;
@@ -199,15 +190,15 @@
     };
 
     CmpBitVec.prototype.appendFill0 = function(len) {
-        if (this.activeWord.type === 2) { // extend current LITERAL word
+        if (this.activeWord.type === TYPE_LITERAL) { // extend current LITERAL word
             var remainingBits = 32 - (this.size - this.activeWord.start);
             this.size += len;
             if (remainingBits >= len) return;
             len -= remainingBits;
-            if (len) this.activeWord.start += 31;
+            if (len) this.activeWord.start += 32;
         }
-        else if (this.activeWord.type === 1) this.size += len;
-        else if (this.activeWord.type === 0) {
+        else if (this.activeWord.type === TYPE_1_FILL) this.size += len;
+        else if (this.activeWord.type === TYPE_0_FILL) {
             this.size += len;
             var nfills = len >>> 5;
             if (nfills) {
@@ -215,7 +206,15 @@
                 len &= 31;
             }
         }
-        else this.size += len;
+        else {
+          if(this.activeWord.type !== TYPE_UNDEFINED) {
+            throw(new Error("activeWord type is illegal."));
+          }
+          if(this.words.length > 0) {
+            throw(new Error("activeWord type is undefined with extant words available"));
+          }
+          this.size += len;
+        }
 
         var nfills = len >>> 5;
         if (nfills) {
@@ -225,27 +224,32 @@
             this.words.push(_magic[x00000000] + nfills);
             this.nwords++;
             this.activeWord.offset = this.nwords-1;
-            this.activeWord.type = 0;
+            this.activeWord.type = TYPE_0_FILL;
             this.activeWord.start += (nfills << 5);
             len &= 31;
         }
         if (len > 0) {
-            if (this.nwords & 31 === 0) this.fills.push(_magic[x00000000]);
+            if ((this.nwords & 31) === 0) this.fills.push(_magic[x00000000]);
             this.words.push(_magic[x00000000]);
             this.nwords++;
-            this.activeWord.type = 2;
+            this.activeWord.type = TYPE_LITERAL;
             this.activeWord.offset = this.nwords-1;
         }
     };
 
     CmpBitVec.prototype.appendFill1 = function(len) {
         this.count += len;
-        if (this.activeWord.type === 2) { // extend current LITERAL word
+        if (this.activeWord.type === TYPE_LITERAL) { // extend current LITERAL word
             var usedBits = this.size - this.activeWord.start;
             var remainingBits = 32 - usedBits;
             this.size += len;
             if (remainingBits) {
                 if (len < remainingBits) {
+                 // 2**len -1 gives len 1s. left shift usedBits to make space for existing
+                 // e.g. usedBits is 10, word is 00000000 00000000 00000000 00000000
+                 // which means that there are 22 unused bits and 10 bits set to 0, e.g.
+                 //                              oooooooo oooooooo oooooo00 00000000
+                 // so we can safely add up to 22 bits of information *to the left hand side bits*
                     this.words[this.activeWord.offset] |= ((_magic[x00000001] << len) - 1) << usedBits;
                     return;
                 }
@@ -256,10 +260,10 @@
             }
             if (len) this.activeWord.start += 32;
         }
-        else if (this.activeWord.type === 0) {
+        else if (this.activeWord.type === TYPE_0_FILL) {
             this.size += len;
         }
-        else if (this.activeWord.type === 1) {
+        else if (this.activeWord.type === TYPE_1_FILL) {
             this.size += len;
             var nfills = len >>> 5;
             if (nfills) {
@@ -267,7 +271,15 @@
                 len &= 31;
             }
         }
-        else this.size += len;
+        else {
+          if(this.activeWord.type !== TYPE_UNDEFINED) {
+            throw(new Error("activeWord type is illegal."));
+          }
+          if(this.words.length > 0) {
+            throw(new Error("activeWord type is undefined with extant words available"));
+          }
+          this.size += len;
+        }
 
         var nfills = len >>> 5;
         if (nfills) {
@@ -277,17 +289,17 @@
             this.words.push(_magic[x80000000] + nfills);
             this.activeWord.offset = this.nwords;
             this.nwords++;
-            this.activeWord.type = 1;
+            this.activeWord.type = TYPE_1_FILL;
             this.activeWord.start += nfills << 5;
             len &= 31;
         }
         if (len > 0) {
             // set length bits to 1 in literal word
-            if (this.nwords & 31 === 0) this.fills.push(_magic[x00000000]);
-            this.words.push(_magic[xFFFFFFFF] >>> 32 - len);
+            if ((this.nwords & 31) === 0) this.fills.push(_magic[x00000000]);
+            this.words.push(_magic[xFFFFFFFF] >>> (32 - len));
             this.activeWord.offset = this.nwords;
             this.nwords++;
-            this.activeWord.type = 2;
+            this.activeWord.type = TYPE_LITERAL;
         }
     };
 
@@ -301,16 +313,16 @@
             while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
             while (that.activeWord.end <= this.activeWord.start) { that.nextWord(); }
             // compare overlapping words
-            if (this.activeWord.type === 0) { // 0-fill
+            if (this.activeWord.type === TYPE_0_FILL) { // 0-fill
                 res.appendFill0(this.activeWord.end - res.size);
                 this.nextWord();
             }
-            else if (this.activeWord.type === 1) { // 1-fill
-                if (that.activeWord.type === 0) { // 1-fill vs 0-fill            
+            else if (this.activeWord.type === TYPE_1_FILL) { // 1-fill
+                if (that.activeWord.type === TYPE_0_FILL) { // 1-fill vs 0-fill
                     res.appendFill0(that.activeWord.end - res.size);
                     that.nextWord();
                 }
-                else if (that.activeWord.type === 1) { // 1-fill vs 1-fill
+                else if (that.activeWord.type === TYPE_1_FILL) { // 1-fill vs 1-fill
                     if (this.activeWord.end <= that.activeWord.end) {
                         res.appendFill1(this.activeWord.end - res.size);
                         this.nextWord();
@@ -320,21 +332,21 @@
                         that.nextWord();
                     }
                 }
-                else if (that.activeWord.type === 2) { // 1-fill vs literal
+                else if (that.activeWord.type === TYPE_LITERAL) { // 1-fill vs literal
                     res.appendWord(that.words[that.activeWord.offset]);
                     that.nextWord();
                 }
             }
-            else if (this.activeWord.type === 2) { // literal
-                if (that.activeWord.type === 0) { // literal vs 0-fill
+            else if (this.activeWord.type === TYPE_LITERAL) { // literal
+                if (that.activeWord.type === TYPE_0_FILL) { // literal vs 0-fill
                     res.appendFill0(that.activeWord.end - res.size);
                     that.nextWord();
                 }
-                else if (that.activeWord.type === 1) { // literal vs 1-fill
+                else if (that.activeWord.type === TYPE_1_FILL) { // literal vs 1-fill
                     res.appendWord(this.words[this.activeWord.offset]);
                     this.nextWord();
                 }
-                else if (that.activeWord.type === 2) { // literal vs literal
+                else if (that.activeWord.type === TYPE_LITERAL) { // literal vs literal
                     res.appendWord(this.words[this.activeWord.offset] & that.words[that.activeWord.offset]);
                     this.nextWord();
                     that.nextWord();
@@ -354,8 +366,8 @@
             while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
             while (that.activeWord.end <= this.activeWord.start) { that.nextWord(); }
             // compare overlapping words
-            if (this.activeWord.type === 0) { // 0-fill
-                if (that.activeWord.type === 0) { // 0-fill vs 0-fill
+            if (this.activeWord.type === TYPE_0_FILL) { // 0-fill
+                if (that.activeWord.type === TYPE_0_FILL) { // 0-fill vs 0-fill
                     if (this.activeWord.end <= that.activeWord.end) {
                         res.appendFill0(this.activeWord.end - res.size);
                         this.nextWord();
@@ -365,29 +377,29 @@
                         that.nextWord();
                     }
                 }
-                else if (that.activeWord.type === 1) { // 0-fill vs 1-fill
+                else if (that.activeWord.type === TYPE_1_FILL) { // 0-fill vs 1-fill
                     res.appendFill1(that.activeWord.end - res.size);
                     that.nextWord();
                 }
-                else if (that.activeWord.type === 2)  { // 0-fill vs literal
+                else if (that.activeWord.type === TYPE_LITERAL)  { // 0-fill vs literal
                     res.appendWord(that.words[that.activeWord.offset]);
                     that.nextWord();
                 }
             }
-            else if (this.activeWord.type === 1) { // 1-fill
+            else if (this.activeWord.type === TYPE_1_FILL) { // 1-fill
                 res.appendWord(this.words[this.activeWord.offset]);
                 this.nextWord();
             }
-            else if (this.activeWord.type === 2) { // literal
-                if (that.activeWord.type === 0) { // literal vs 0-fill
+            else if (this.activeWord.type === TYPE_LITERAL) { // literal
+                if (that.activeWord.type === TYPE_0_FILL) { // literal vs 0-fill
                     res.appendWord(this.words[this.activeWord.offset]);
                     this.nextWord();
                 }
-                else if (that.activeWord.type === 1) { // literal vs 1-fill
+                else if (that.activeWord.type === TYPE_1_FILL) { // literal vs 1-fill
                     res.appendFill1(that.activeWord.end - res.size);
                     that.nextWord();
                 }
-                else if (that.activeWord.type === 2) { // literal vs literal
+                else if (that.activeWord.type === TYPE_LITERAL) { // literal vs literal
                     res.appendWord(this.words[this.activeWord.offset] | that.words[that.activeWord.offset]);
                     this.nextWord();
                     that.nextWord();
@@ -430,20 +442,93 @@
         if ((this.activeWord.start <= wordStart) && (wordStart < this.activeWord.end)) return;
         while (this.activeWord.end <= wordStart) this.nextWord();
         while (this.activeWord.start > wordStart) this.prevWord();
-    }
-
-    CmpBitVec.prototype.nextSetBit = function(pos) {
-        if (pos > this.size) return -1;
-        this.scan(pos);
-        if (this.activeWord.type === 2) {
-            _magic[freeSpace] = this.words[this.activeWord.offset] & (_magic[xFFFFFFFF] << (pos - this.activeWord.start));
-
-            if (_magic[freeSpace] === 0) return this.nextSetBit(this.activeWord.end);
-            else return this.activeWord.start + ctz(_magic[freeSpace]);
-        }
-        else if (this.activeWord.type === 1) return pos;
-        else return this.nextsetBit(this.activeWord.end);
     };
 
+    CmpBitVec.prototype.nextSetBitInclusive = function(pos) {
+        if (!pos) pos = 0;
+        if (pos < 0 || pos >= this.size) return -1;
+        this.scan(pos);
+        if (this.activeWord.type === TYPE_LITERAL) {
+            _magic[freeSpace] = this.words[this.activeWord.offset] & (_magic[xFFFFFFFF] << (pos - this.activeWord.start));
+
+            if (_magic[freeSpace] === 0) return this.nextSetBitInclusive(this.activeWord.end);
+            else return this.activeWord.start + this.ctz(_magic[freeSpace]);
+        }
+        else if (this.activeWord.type === TYPE_1_FILL) return pos;
+        else return this.nextSetBitInclusive(this.activeWord.end);
+    };
+
+    CmpBitVec.prototype.toString = function() {
+      var instance = this
+        , stringRepresentation = '';
+
+      function stringRepOfActiveLiteralWord() {
+        var wordString = ''
+          , theWord = instance.words[instance.activeWord.offset];
+
+        for (var i = 0; i < 32; i++) {
+          wordString += (theWord & _magic[x80000000]) ? '1' : '0';
+          if(i % 8 === 7) wordString += ' ';
+          theWord <<= 1;
+        }
+
+        return wordString;
+      }
+
+      function appendActiveWord() {
+        switch(instance.activeWord.type) {
+          case TYPE_0_FILL:
+            stringRepresentation += '00000000 00000000 00000000 00000000 ';
+            break;
+          case TYPE_1_FILL:
+            stringRepresentation += '11111111 11111111 11111111 11111111 ';
+            break;
+          case TYPE_LITERAL:
+            stringRepresentation += stringRepOfActiveLiteralWord();
+            break;
+          case TYPE_UNDEFINED:
+          default:
+            throw new Error("activeWord has undefined state");
+        }
+      }
+
+      this.begin();
+
+      while(true) {
+        appendActiveWord();
+        if(instance.activeWord.end >= this.size) {
+          break;
+        }
+        else {
+          this.nextWord();
+        }
+      }
+
+      return stringRepresentation.substring(0, stringRepresentation.length - 1);
+    };
+
+
+
+  // counts the number of set bits in a 32 bit word
+  CmpBitVec.prototype.popcount = function popcount(v) {
+    v = v - ((v >>> 1) & 0x55555555);
+    v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+    return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
+  };
+
+  // count trailing zeros in a 32 bit word
+  CmpBitVec.prototype.ctz = function ctz(v) {
+    var c = 32;
+    v &= -v;
+    if (v) c--;
+    if (v & 0x0000FFFF) c -= 16;
+    if (v & 0x00FF00FF) c -= 8;
+    if (v & 0x0F0F0F0F) c -= 4;
+    if (v & 0x33333333) c -= 2;
+    if (v & 0x55555555) c -= 1;
+    return c;
+  };
+
+
     module.exports = CmpBitVec;
-}())
+}());
