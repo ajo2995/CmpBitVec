@@ -62,7 +62,7 @@
     };
 
     // load a bitvector from an ArrayBuffer
-    CmpBitVec.prototype.load = function(buf) {
+    CmpBitVec.prototype.loadFromArrayBuffer = function(buf) {
         this.packed = true;
         var i32     = new Int32Array(buf);
         this.size   = i32[0];
@@ -73,6 +73,27 @@
 
         this.begin();
     };
+    
+    // get the ArrayBuffer
+    CmpBitVec.prototype.saveToArrayBuffer = function() {
+      this.pack();
+      return this.words.buffer;
+    }
+    
+    // check if two packed CmpBitVecs are equal
+    CmpBitVec.prototype.equals = function(bvec) {
+      if (this.size != bvec.size) return false;
+      if (this.count != bvec.count) return false;
+      if (this.nwords != bvec.nwords) return false;
+      var nfills = ((this.nwords-1) >>> 5) + 1;
+      for (var i=0;i<nfills;i++) {
+        if (this.fills[i] != bvec.fills[i]) return false;
+      }
+      for (var i=0;i<this.nwords;i++) {
+        if (this.words[i] != bvec.words[i]) return false;
+      }
+      return true;
+    }
 
     // copy a bitvector into an ArrayBuffer
     CmpBitVec.prototype.pack = function() {
