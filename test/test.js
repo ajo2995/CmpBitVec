@@ -288,7 +288,22 @@ describe('CmpBitVec', function () {
       // then
       v.activeWord.start.should.equal(originalActiveWordStart);
     });
-  })
+  });
+  
+  describe('#saveToArrayBuffer, #loadFromArrayBuffer', function() {
+    it('should save and load again without changing', function() {
+      var v1 = new CmpBitVec();
+      v1.appendFill1(45);
+      v1.appendFill0(4);
+      v1.appendFill0(1);
+      v1.appendFill1(3);
+      v1.appendFill1(33);
+      var v2 = new CmpBitVec();
+      v2.loadFromArrayBuffer(v1.saveToArrayBuffer());
+      v1.toString().should.equal(v2.toString());
+    });
+  });
+  
 });
 
 

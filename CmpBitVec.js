@@ -62,7 +62,7 @@
     };
 
     // load a bitvector from an ArrayBuffer
-    CmpBitVec.prototype.load = function(buf) {
+    CmpBitVec.prototype.loadFromArrayBuffer = function(buf) {
         this.packed = true;
         var i32     = new Int32Array(buf);
         this.size   = i32[0];
@@ -73,6 +73,12 @@
 
         this.begin();
     };
+    
+    // get the ArrayBuffer
+    CmpBitVec.prototype.saveToArrayBuffer = function() {
+      this.pack();
+      return this.words.buffer;
+    }
 
     // copy a bitvector into an ArrayBuffer
     CmpBitVec.prototype.pack = function() {
