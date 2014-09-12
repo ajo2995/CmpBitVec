@@ -295,12 +295,12 @@ describe('CmpBitVec', function () {
       var v1 = new CmpBitVec();
       v1.appendFill1(45);
       v1.appendFill0(4);
-      v1.appendFill0(1);
+      v1.appendFill0(1000);
       v1.appendFill1(3);
       v1.appendFill1(33);
       var v2 = new CmpBitVec();
       v2.loadFromArrayBuffer(v1.saveToArrayBuffer());
-      v1.toString().should.equal(v2.toString());
+      v1.equals(v2).should.equal(true);
     });
   });
   
