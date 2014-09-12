@@ -92,7 +92,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('<empty>');
     });
 
-    it('should work for compressed words', function() {
+    it('should work for compressed words of exactly 32 bits', function() {
       var v = new CmpBitVec();
       v.appendFill0(32);
       v.toString().should.equal('00000000 00000000 00000000 00000000');
@@ -101,13 +101,25 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111');
     });
 
+    it('should work for longer compressed words that are multiples of 32', function() {
+      var v = new CmpBitVec();
+      v.appendFill0(96);
+      v.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
+    });
+
+    it('should work for longer compressed words that are not multiples of 32', function() {
+      var v = new CmpBitVec();
+      v.appendFill1(33);
+      v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxx1');
+    });
+
     it('should work for literal words', function() {
       var v = new CmpBitVec();
       v.appendFill0(3);
       v.appendFill1(4);
       v.appendFill0(1);
       v.appendFill1(3);
-      v.toString().should.equal('00000000 00000000 00000111 01111000');
+      v.toString().should.equal('xxxxxxxx xxxxxxxx xxxxx111 01111000');
     });
 
     it('should work for combinations of compressed and literal words', function() {
@@ -116,7 +128,7 @@ describe('CmpBitVec', function () {
       v.appendFill0(4);
       v.appendFill0(1);
       v.appendFill1(3);
-      v.toString().should.equal('11111111 11111111 11111111 11111111 00000000 00011100 00011111 11111111');
+      v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxx11100 00011111 11111111');
     });
 
     it('should refuse to print a string of more than 128 bits', function() {
@@ -124,7 +136,7 @@ describe('CmpBitVec', function () {
       v.appendFill1(128);
       v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
       v.appendFill0(1);
-      v.toString().should.throwError();
+      (function() { v.toString() }).should.throwError('Bit vector too long.');
     })
   })
 });

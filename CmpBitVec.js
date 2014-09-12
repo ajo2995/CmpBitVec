@@ -482,10 +482,12 @@
 
       function pushBytesOfActiveLiteralWord() {
         var byteString = ''
-          , theWord = instance.words[instance.activeWord.offset];
+          , theWord = instance.words[instance.activeWord.offset]
+          , numBytesDefined = instance.size - instance.activeWord.start
+          , firstLittleEndianByteDefined = 32 - numBytesDefined;
 
         for (var i = 0; i < 32; i++) {
-          byteString += (theWord & _magic[x80000000]) ? '1' : '0';
+          byteString += (theWord & _magic[x80000000]) ? '1' : (i > firstLittleEndianByteDefined ? '0' : 'x');
           if(i % 8 === 7) {
             byteStrings.push(byteString);
             byteString = '';
@@ -500,6 +502,10 @@
 
       if(this.size === 0) {
         return "<empty>";
+      }
+
+      if(this.size > 128) {
+        throw new Error('Bit vector too long.');
       }
 
       this.begin();
