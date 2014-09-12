@@ -84,9 +84,14 @@ describe('CmpBitVec', function () {
       v.nextSetBitInclusive(21001).should.equal(21001);
       v.nextSetBitInclusive(-1).should.equal(-1);
     });
-  })
+  });
 
   describe('#toString', function() {
+    it('should return "<empty>" for an empty bit vector', function() {
+      var v = new CmpBitVec();
+      v.toString().should.equal('<empty>');
+    });
+
     it('should work for compressed words', function() {
       var v = new CmpBitVec();
       v.appendFill0(32);

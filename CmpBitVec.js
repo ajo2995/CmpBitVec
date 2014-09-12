@@ -460,51 +460,55 @@
 
     CmpBitVec.prototype.toString = function() {
       var instance = this
-        , stringRepresentation = '';
+        , byteStrings = [];
 
-      function stringRepOfActiveLiteralWord() {
-        var wordString = ''
-          , theWord = instance.words[instance.activeWord.offset];
-
-        for (var i = 0; i < 32; i++) {
-          wordString += (theWord & _magic[x80000000]) ? '1' : '0';
-          if(i % 8 === 7) wordString += ' ';
-          theWord <<= 1;
-        }
-
-        return wordString;
-      }
-
-      function appendActiveWord() {
-        switch(instance.activeWord.type) {
+      function appendActiveWord() { with(instance.activeWord) {
+        var lengthInBytes = (end - start) / 8;
+        switch(type) {
           case TYPE_0_FILL:
-            stringRepresentation += '00000000 00000000 00000000 00000000 ';
+            pushByteRepresentations('00000000', lengthInBytes);
             break;
           case TYPE_1_FILL:
-            stringRepresentation += '11111111 11111111 11111111 11111111 ';
+            pushByteRepresentations('11111111', lengthInBytes);
             break;
           case TYPE_LITERAL:
-            stringRepresentation += stringRepOfActiveLiteralWord();
+            pushBytesOfActiveLiteralWord();
             break;
           case TYPE_UNDEFINED:
           default:
             throw new Error("activeWord has undefined state");
         }
+      }}
+
+      function pushBytesOfActiveLiteralWord() {
+        var byteString = ''
+          , theWord = instance.words[instance.activeWord.offset];
+
+        for (var i = 0; i < 32; i++) {
+          byteString += (theWord & _magic[x80000000]) ? '1' : '0';
+          if(i % 8 === 7) {
+            byteStrings.push(byteString);
+            byteString = '';
+          }
+          theWord <<= 1;
+        }
+      }
+
+      function pushByteRepresentations(byteString, numBytes) {
+        while(numBytes--) { byteStrings.push(byteString); }
+      }
+
+      if(this.size === 0) {
+        return "<empty>";
       }
 
       this.begin();
 
-      while(true) {
+      do {
         appendActiveWord();
-        if(instance.activeWord.end >= this.size) {
-          break;
-        }
-        else {
-          this.nextWord();
-        }
-      }
+      } while(instance.activeWord.end < this.size && !this.nextWord());
 
-      return stringRepresentation.substring(0, stringRepresentation.length - 1);
+      return byteStrings.join(' ');
     };
 
 
