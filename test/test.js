@@ -268,7 +268,7 @@ describe('CmpBitVec', function () {
       v.appendFill1(256);
       v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
       v.appendFill0(1);
-      (function() { v.toString() }).should.throwError('Bit vector too long.');
+      (function() { return v.toString() }).should.throwError('Bit vector too long for string representation. (This length restriction is arbitrary.)');
     });
 
     it('should preserve original activeWord', function() {
@@ -357,7 +357,8 @@ describe('CmpBitVec', function () {
       });
       it('should work for simple case', function() {
         v1.and(v1).toString().should.equal(v1.toString());
-      })
+      });
+
     })
   })
 });
