@@ -46,8 +46,8 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#appendFilln', function() {
-    it('should allow muliple successive calls to appendFill0', function() {
+  describe('#appendFilln', function () {
+    it('should allow muliple successive calls to appendFill0', function () {
       var v1 = new CmpBitVec()
         , v2 = new CmpBitVec();
 
@@ -60,7 +60,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
     });
 
-    it('should allow muliple successive calls to appendFill1', function() {
+    it('should allow muliple successive calls to appendFill1', function () {
       var v1 = new CmpBitVec()
         , v2 = new CmpBitVec();
 
@@ -73,7 +73,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
     });
 
-    it('should allow muliple successive calls to appendFill0 over word boundary', function() {
+    it('should allow muliple successive calls to appendFill0 over word boundary', function () {
       var v1 = new CmpBitVec()
         , v2 = new CmpBitVec();
 
@@ -86,7 +86,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
     });
 
-    it('should allow muliple successive calls to appendFill1 over word boundary', function() {
+    it('should allow muliple successive calls to appendFill1 over word boundary', function () {
       var v1 = new CmpBitVec()
         , v2 = new CmpBitVec();
 
@@ -100,25 +100,26 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#nextWord, #prevWord, #scan', function() {
+  describe('#nextWord, #prevWord, #scan', function () {
     var v;
-    beforeEach(function() {
+    beforeEach(function () {
       v = new CmpBitVec();
       v.appendFill1(64);
       v.appendFill0(48);
       v.appendFill1(32);
       v.begin();
     });
-    it('should go to the next word', function() {
+
+    it('should go to the next word', function () {
       v.activeWord.start.should.equal(0);
       v.nextWord();
       v.activeWord.start.should.equal(64);
       v.nextWord();
       v.activeWord.start.should.equal(96);
-      v.nextWord()
+      v.nextWord();
     });
 
-    it('activeWord should be sane after appendFill1', function() {
+    it('activeWord should be sane after appendFill1', function () {
       var v = new CmpBitVec()
         , originalActiveWordStart;
       v.appendFill1(45);
@@ -130,7 +131,7 @@ describe('CmpBitVec', function () {
       v.activeWord.start.should.lessThan(v.activeWord.end);
     });
 
-    it('activeWord should be sane after appendFill0', function() {
+    it('activeWord should be sane after appendFill0', function () {
       var v = new CmpBitVec()
         , originalActiveWordStart;
       v.appendFill0(45);
@@ -183,13 +184,13 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#toString', function() {
-    it('should return "<empty>" for an empty bit vector', function() {
+  describe('#toString', function () {
+    it('should return "<empty>" for an empty bit vector', function () {
       var v = new CmpBitVec();
       v.toString().should.equal('<empty>');
     });
 
-    it('should work for compressed words of exactly 32 bits', function() {
+    it('should work for compressed words of exactly 32 bits', function () {
       var v = new CmpBitVec();
       v.appendFill0(32);
       v.toString().should.equal('00000000 00000000 00000000 00000000');
@@ -198,19 +199,19 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111');
     });
 
-    it('should work for longer compressed words that are multiples of 32', function() {
+    it('should work for longer compressed words that are multiples of 32', function () {
       var v = new CmpBitVec();
       v.appendFill0(96);
       v.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
     });
 
-    it('should work for longer compressed words that are not multiples of 32', function() {
+    it('should work for longer compressed words that are not multiples of 32', function () {
       var v = new CmpBitVec();
       v.appendFill1(33);
       v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxx1');
     });
 
-    it('should work for literal words', function() {
+    it('should work for literal words', function () {
       var v = new CmpBitVec();
       v.appendFill0(3);
       v.appendFill1(4);
@@ -219,7 +220,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('xxxxxxxx xxxxxxxx xxxxx111 01111000');
     });
 
-    it('should work with successive calls to toString with a single word', function() {
+    it('should work with successive calls to toString with a single word', function () {
       var v = new CmpBitVec()
         , stringRep;
       v.appendFill0(3);
@@ -232,7 +233,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal(stringRep);
     });
 
-    it('should work for combinations of compressed and then literal words', function() {
+    it('should work for combinations of compressed and then literal words', function () {
       var v = new CmpBitVec();
       v.appendFill1(45);
       v.appendFill0(4);
@@ -241,7 +242,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxx11100 00011111 11111111');
     });
 
-    it('should work with successive calls to toString with >1 word', function() {
+    it('should work with successive calls to toString with >1 word', function () {
       var v = new CmpBitVec()
         , stringRep;
       v.appendFill1(45);
@@ -254,7 +255,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal(stringRep);
     });
 
-    it('should work for combinations of partially-filled literal and then compressed words', function() {
+    it('should work for combinations of partially-filled literal and then compressed words', function () {
       var v = new CmpBitVec();
       v.appendFill1(1);
       v.appendFill0(1);
@@ -262,15 +263,15 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('11111111 11111111 11111111 11111101 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxx11');
     });
 
-    it('should refuse to print a string of more than 256 bits', function() {
+    it('should refuse to print a string of more than 256 bits', function () {
       var v = new CmpBitVec();
       v.appendFill1(256);
       v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
       v.appendFill0(1);
-      (function() { v.toString() }).should.throwError('Bit vector too long.');
+      (function () { v.toString() }).should.throwError('Bit vector too long for string representation. (This length restriction is arbitrary.)');
     });
 
-    it('should preserve original activeWord', function() {
+    it('should preserve original activeWord', function () {
       // given
       var v = new CmpBitVec()
         , originalActiveWordStart;
@@ -288,6 +289,62 @@ describe('CmpBitVec', function () {
       // then
       v.activeWord.start.should.equal(originalActiveWordStart);
     });
+  });
+
+  describe("logical operations", function() {
+    var v0, v1, v01, v10, vlit1, vlit2, v0first, v1first, vlong;
+    beforeEach(function(){
+      v0 = new CmpBitVec();
+      v0.appendFill0(64);
+
+      v1 = new CmpBitVec();
+      v1.appendFill1(64);
+
+      v01 = new CmpBitVec();
+      v01.appendFill0(32);
+      v01.appendFill1(32);
+
+      v10 = new CmpBitVec();
+      v10.appendFill1(32);
+      v10.appendFill0(32);
+
+      vlit1 = new CmpBitVec();
+      vlit1.appendFill0(16);
+      vlit1.appendFill1(32);
+      vlit1.appendFill0(16);
+
+      vlit2 = new CmpBitVec();
+      vlit2.appendFill1(16);
+      vlit2.appendFill0(32);
+      vlit2.appendFill1(16);
+
+      v0first = new CmpBitVec();
+      v0first.appendFill0(1);
+      v0first.appendFill1(63);
+
+      v1first = new CmpBitVec();
+      v1first.appendFill1(1);
+      v1first.appendFill0(63);
+
+      vlong = new CmpBitVec();
+      vlong.appendFill1(65);
+    });
+    describe('#and', function() {
+      it('should not work with null arguments', function() {
+        (function() { v1.and(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      });
+      it('should not work with non-CmpBitVec arguments', function() {
+        (function() { v1.and(new Date()); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+        (function() { v1.and('sausage'); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      });
+      it('should not work with vectors of different length', function() {
+        (function() { v1.and(vlong); }).should.throw('Bit vector length mismatch');
+        (function() { vlong.and(v1); }).should.throw('Bit vector length mismatch');
+      });
+      it('should work for simple case', function() {
+        v1.and(v1).toString().should.equal(v1.toString());
+      })
+    })
   })
 });
 

@@ -309,6 +309,10 @@
 
     // return the logical AND of two CmpBitVec objects
     CmpBitVec.prototype.and = function(that) {
+        checkBitVectorPair(this, that);
+
+        if(this === that) return this;
+
         var res = new CmpBitVec();
         this.begin();
         that.begin();
@@ -510,7 +514,7 @@
       }
 
       if(this.size > 256) {
-        throw new Error('Bit vector too long.');
+        throw new Error('Bit vector too long for string representation. (This length restriction is arbitrary.)');
       }
 
       this.begin();
@@ -546,6 +550,17 @@
     return c;
   };
 
+  function checkBitVectorPair(a, b) {
+    if(!a || !(a instanceof CmpBitVec)) {
+      throw new Error('First bit vector for binary operation is false-y or not a CmpBitVec instance');
+    }
+    if(!b || !(b instanceof CmpBitVec)) {
+      throw new Error('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    }
+    if(a.size != b.size) {
+      throw new Error('Bit vector length mismatch');
+    }
+  }
 
     module.exports = CmpBitVec;
 }());
