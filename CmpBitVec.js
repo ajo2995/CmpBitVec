@@ -27,7 +27,7 @@
         this.activeWord = {
             offset : 0,
             start  : 0,
-            end    : 32,
+            end    : 0,
             type   : TYPE_UNDEFINED // types are 0-fill, 1-fill, literal (2), 3 is undefined
         };
     }
@@ -195,7 +195,6 @@
             this.size += len;
             if (remainingBits >= len) return;
             len -= remainingBits;
-            if (len) this.activeWord.start += 32;
         }
         else if (this.activeWord.type === TYPE_1_FILL) this.size += len;
         else if (this.activeWord.type === TYPE_0_FILL) {
@@ -225,13 +224,16 @@
             this.nwords++;
             this.activeWord.offset = this.nwords-1;
             this.activeWord.type = TYPE_0_FILL;
-            this.activeWord.start += (nfills << 5);
+            this.activeWord.start = this.activeWord.end;
+            this.activeWord.end += (nfills * 32);
             len &= 31;
         }
         if (len > 0) {
             if ((this.nwords & 31) === 0) this.fills.push(_magic[x00000000]);
             this.words.push(_magic[x00000000]);
             this.nwords++;
+            this.activeWord.start = this.activeWord.end;
+            this.activeWord.end += 32;
             this.activeWord.type = TYPE_LITERAL;
             this.activeWord.offset = this.nwords-1;
         }
@@ -258,7 +260,6 @@
                 }
                 len -= remainingBits;
             }
-            if (len) this.activeWord.start += 32;
         }
         else if (this.activeWord.type === TYPE_0_FILL) {
             this.size += len;
@@ -281,7 +282,7 @@
           this.size += len;
         }
 
-        var nfills = len >>> 5;
+        var nfills = len >>> 5; // aka Math.floor( len / 32 )
         if (nfills) {
             var mod = this.nwords & 31;
             if (mod) this.fills[this.fills.length - 1] |= _magic[x00000001] << mod;
@@ -290,7 +291,8 @@
             this.activeWord.offset = this.nwords;
             this.nwords++;
             this.activeWord.type = TYPE_1_FILL;
-            this.activeWord.start += nfills << 5;
+            this.activeWord.start = this.activeWord.end;  // this.activeWord.start += nfills * 32;
+            this.activeWord.end += nfills * 32;
             len &= 31;
         }
         if (len > 0) {
@@ -299,6 +301,8 @@
             this.words.push(_magic[xFFFFFFFF] >>> (32 - len));
             this.activeWord.offset = this.nwords;
             this.nwords++;
+            this.activeWord.start = this.activeWord.end;
+            this.activeWord.end += 32;
             this.activeWord.type = TYPE_LITERAL;
         }
     };
@@ -438,10 +442,10 @@
         return result;
     };
 
-    CmpBitVec.prototype.scan = function(wordStart) {
-        if ((this.activeWord.start <= wordStart) && (wordStart < this.activeWord.end)) return;
-        while (this.activeWord.end <= wordStart) this.nextWord();
-        while (this.activeWord.start > wordStart) this.prevWord();
+    CmpBitVec.prototype.scan = function(bitPos) {
+        if ((this.activeWord.start <= bitPos) && (bitPos < this.activeWord.end)) return;
+        while (this.activeWord.end <= bitPos) this.nextWord();
+        while (this.activeWord.start > bitPos) this.prevWord();
     };
 
     CmpBitVec.prototype.nextSetBitInclusive = function(pos) {
@@ -460,7 +464,8 @@
 
     CmpBitVec.prototype.toString = function() {
       var instance = this
-        , byteStrings = [];
+        , byteStrings = []
+        , originalActiveWordStartPos = this.activeWord.start;
 
       function appendActiveWord() { with(instance.activeWord) {
         var lengthInBytes = (end - start) / 8;
@@ -487,7 +492,7 @@
           , firstLittleEndianByteDefined = 32 - numBytesDefined;
 
         for (var i = 0; i < 32; i++) {
-          byteString += (theWord & _magic[x80000000]) ? '1' : (i > firstLittleEndianByteDefined ? '0' : 'x');
+          byteString += (theWord & _magic[x80000000]) ? '1' : (i >= firstLittleEndianByteDefined ? '0' : 'x');
           if(i % 8 === 7) {
             byteStrings.push(byteString);
             byteString = '';
@@ -504,7 +509,7 @@
         return "<empty>";
       }
 
-      if(this.size > 128) {
+      if(this.size > 256) {
         throw new Error('Bit vector too long.');
       }
 
@@ -513,6 +518,8 @@
       do {
         appendActiveWord();
       } while(instance.activeWord.end < this.size && !this.nextWord());
+
+      this.scan(originalActiveWordStartPos);
 
       return byteStrings.join(' ');
     };

@@ -46,6 +46,103 @@ describe('CmpBitVec', function () {
     });
   });
 
+  describe('#appendFilln', function() {
+    it('should allow muliple successive calls to appendFill0', function() {
+      var v1 = new CmpBitVec()
+        , v2 = new CmpBitVec();
+
+      v1.appendFill0(4);
+
+      v2.appendFill0(2);
+      v2.appendFill0(2);
+
+      v1.toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx0000', 'One call to appendFill0');
+      v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
+    });
+
+    it('should allow muliple successive calls to appendFill1', function() {
+      var v1 = new CmpBitVec()
+        , v2 = new CmpBitVec();
+
+      v1.appendFill1(4);
+
+      v2.appendFill1(2);
+      v2.appendFill1(2);
+
+      v1.toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111', 'One call to appendFill1');
+      v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
+    });
+
+    it('should allow muliple successive calls to appendFill0 over word boundary', function() {
+      var v1 = new CmpBitVec()
+        , v2 = new CmpBitVec();
+
+      v1.appendFill0(48);
+
+      v2.appendFill0(24);
+      v2.appendFill0(24);
+
+      v1.toString().should.equal('00000000 00000000 00000000 00000000 xxxxxxxx xxxxxxxx 00000000 00000000', 'One call to appendFill0');
+      v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
+    });
+
+    it('should allow muliple successive calls to appendFill1 over word boundary', function() {
+      var v1 = new CmpBitVec()
+        , v2 = new CmpBitVec();
+
+      v1.appendFill1(48);
+
+      v2.appendFill1(24);
+      v2.appendFill1(24);
+
+      v1.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx 11111111 11111111', 'One call to appendFill1');
+      v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
+    });
+  });
+
+  describe('#nextWord, #prevWord, #scan', function() {
+    var v;
+    beforeEach(function() {
+      v = new CmpBitVec();
+      v.appendFill1(64);
+      v.appendFill0(48);
+      v.appendFill1(32);
+      v.begin();
+    });
+    it('should go to the next word', function() {
+      v.activeWord.start.should.equal(0);
+      v.nextWord();
+      v.activeWord.start.should.equal(64);
+      v.nextWord();
+      v.activeWord.start.should.equal(96);
+      v.nextWord()
+    });
+
+    it('activeWord should be sane after appendFill1', function() {
+      var v = new CmpBitVec()
+        , originalActiveWordStart;
+      v.appendFill1(45);
+      v.appendFill1(4);
+      v.appendFill1(1);
+      v.appendFill1(3);
+      v.appendFill1(33);
+
+      v.activeWord.start.should.lessThan(v.activeWord.end);
+    });
+
+    it('activeWord should be sane after appendFill0', function() {
+      var v = new CmpBitVec()
+        , originalActiveWordStart;
+      v.appendFill0(45);
+      v.appendFill0(4);
+      v.appendFill0(1);
+      v.appendFill0(3);
+      v.appendFill0(33);
+
+      v.activeWord.start.should.lessThan(v.activeWord.end);
+    });
+  });
+
   describe('#nextSetBitInclusive', function () {
     it('should work with uncompressed small bitset', function () {
       var v = new CmpBitVec();
@@ -122,7 +219,20 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('xxxxxxxx xxxxxxxx xxxxx111 01111000');
     });
 
-    it('should work for combinations of compressed and literal words', function() {
+    it('should work with successive calls to toString with a single word', function() {
+      var v = new CmpBitVec()
+        , stringRep;
+      v.appendFill0(3);
+      v.appendFill1(4);
+      v.appendFill0(1);
+      v.appendFill1(3);
+      stringRep = v.toString();
+
+      stringRep.should.equal('xxxxxxxx xxxxxxxx xxxxx111 01111000');
+      v.toString().should.equal(stringRep);
+    });
+
+    it('should work for combinations of compressed and then literal words', function() {
       var v = new CmpBitVec();
       v.appendFill1(45);
       v.appendFill0(4);
@@ -131,13 +241,53 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxx11100 00011111 11111111');
     });
 
-    it('should refuse to print a string of more than 128 bits', function() {
+    it('should work with successive calls to toString with >1 word', function() {
+      var v = new CmpBitVec()
+        , stringRep;
+      v.appendFill1(45);
+      v.appendFill0(4);
+      v.appendFill0(1);
+      v.appendFill1(3);
+      stringRep = v.toString();
+
+      stringRep.should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxx11100 00011111 11111111');
+      v.toString().should.equal(stringRep);
+    });
+
+    it('should work for combinations of partially-filled literal and then compressed words', function() {
       var v = new CmpBitVec();
-      v.appendFill1(128);
-      v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
+      v.appendFill1(1);
+      v.appendFill0(1);
+      v.appendFill1(96);
+      v.toString().should.equal('11111111 11111111 11111111 11111101 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxx11');
+    });
+
+    it('should refuse to print a string of more than 256 bits', function() {
+      var v = new CmpBitVec();
+      v.appendFill1(256);
+      v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
       v.appendFill0(1);
       (function() { v.toString() }).should.throwError('Bit vector too long.');
-    })
+    });
+
+    it('should preserve original activeWord', function() {
+      // given
+      var v = new CmpBitVec()
+        , originalActiveWordStart;
+      v.appendFill1(45);
+      v.appendFill0(4);
+      v.appendFill0(1);
+      v.appendFill1(3);
+      v.appendFill1(33);
+      v.scan(46);
+      originalActiveWordStart = v.activeWord.start;
+
+      // when
+      v.toString();
+
+      // then
+      v.activeWord.start.should.equal(originalActiveWordStart);
+    });
   })
 });
 
