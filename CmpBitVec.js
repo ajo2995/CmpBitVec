@@ -30,7 +30,7 @@
             end    : 0,
             type   : TYPE_UNDEFINED // types are 0-fill, 1-fill, literal (2), 3 is undefined
         };
-    }
+    };
 
     // check whether the ith word is a fill
     CmpBitVec.prototype.isFill = function(i) {
@@ -50,6 +50,9 @@
 
     // Set active word to the first in the CmpBitVec
     CmpBitVec.prototype.begin = function() {
+        if(this.activeWord.type === TYPE_UNDEFINED) {
+          return; // the CmpBitVec is empty.
+        }
         this.activeWord = {
             offset : 0,
             start  : 0,
@@ -78,27 +81,28 @@
     CmpBitVec.prototype.saveToArrayBuffer = function() {
       this.pack();
       return this.words.buffer;
-    }
+    };
     
-    // check if two packed CmpBitVecs are equal
+    // Check if two CmpBitVecs represent the same bit vector
+    // NB This implementation will return true when a packed bit vector is compared to a unpacked equivalent
     CmpBitVec.prototype.equals = function(bvec) {
-      if (this.size != bvec.size) return false;
-      if (this.count != bvec.count) return false;
-      if (this.nwords != bvec.nwords) return false;
-      var nfills = ((this.nwords-1) >>> 5) + 1;
-      for (var i=0;i<nfills;i++) {
-        if (this.fills[i] != bvec.fills[i]) return false;
+      if (this.size !== bvec.size) return false;
+      if (this.count !== bvec.count) return false;
+      if (this.nwords !== bvec.nwords) return false;
+
+      for (var i=0;i<this.fills.length;i++) {
+        if (this.fills[i] !== bvec.fills[i]) return false;
       }
-      for (var i=0;i<this.nwords;i++) {
-        if (this.words[i] != bvec.words[i]) return false;
+      for (var i=0;i<this.words.length;i++) {
+        if (this.words[i] !== bvec.words[i]) return false;
       }
       return true;
-    }
+    };
 
-    // copy a bitvector into an ArrayBuffer
+    // Move a bitvector such that all information is encoded into a single ArrayBuffer.
     CmpBitVec.prototype.pack = function() {
         if (this.packed) { return; }
-        var nfills = ((this.nwords-1) >>> 5) + 1;
+        var nfills = this.fills.length; // ((this.nwords-1) >>> 5) + 1;
         var buf = ArrayBuffer(4*(3 + this.nwords + nfills));
         this.packed = true;
         var i32     = new Int32Array(buf);
@@ -106,14 +110,11 @@
         i32[1]      = this.count;
         i32[2]      = this.nwords;
         var wordArr = i32.subarray(3, this.nwords+3);
-        var fillArr = i32.subarray(3+this.nwords);
-        for(var i=0; i<this.nwords; i++) {
-            wordArr[i] = this.words[i];
-        }
+        wordArr.set(this.words);
         this.words = wordArr;
-        for(i=0; i<nfills; i++) {
-            fillArr[i] = this.fills[i];
-        }
+
+        var fillArr = i32.subarray(3+this.nwords);
+        fillArr.set(this.fills);
         this.fills = fillArr;
 
         this.begin();
@@ -139,6 +140,12 @@
         }
         this.fills = fillArr;
         this.begin();
+    };
+
+    CmpBitVec.prototype.ensureModifiable = function() {
+      if(this.packed === true) {
+        throw new Error('Call unpack() on a packed bit vector before attempting to modify it');
+      }
     }
 
     // advance to the next active word
@@ -159,7 +166,17 @@
             32 : this.words[this.activeWord.offset] << 5;
     };
 
+    CmpBitVec.prototype.activeWordIsLast = function() {
+        return this.activeWord.end >= this.size;
+    };
+
     CmpBitVec.prototype.appendWord = function(word) {
+        this.ensureModifiable();
+
+        if(this.size % 32 !== 0) {
+          throw new Error('Unsupported operation: Appending a word to bit vector that ends with a partially-full literal vector');
+        }
+
         if (word === _magic[x00000000]) { // 0-fill
             if (this.activeWord.type === TYPE_0_FILL) { // extends previous 0-fill
                 this.words[this.activeWord.offset]++;
@@ -196,7 +213,7 @@
             }
         }
         else { // literal
-            if (this.nwords & 31 === 0) {
+            if ((this.nwords & 31) === 0) {
                 this.fills.push(_magic[x00000000]);
             }
             this.words.push(word);
@@ -207,10 +224,12 @@
         this.activeWord.offset = this.nwords-1;
         this.activeWord.start  = this.size;
         this.size             += 32;
-        this.activeWord.end    = size;
+        this.activeWord.end    = this.size;
     };
 
     CmpBitVec.prototype.appendFill0 = function(len) {
+        this.ensureModifiable();
+
         if (this.activeWord.type === TYPE_LITERAL) { // extend current LITERAL word
             var remainingBits = 32 - (this.size - this.activeWord.start);
             this.size += len;
@@ -223,6 +242,7 @@
             var nfills = len >>> 5;
             if (nfills) {
                 this.words[this.nwords-1] += nfills;
+                this.activeWord.end += nfills * 32;
                 len &= 31;
             }
         }
@@ -261,6 +281,8 @@
     };
 
     CmpBitVec.prototype.appendFill1 = function(len) {
+        this.ensureModifiable();
+
         this.count += len;
         if (this.activeWord.type === TYPE_LITERAL) { // extend current LITERAL word
             var usedBits = this.size - this.activeWord.start;
@@ -290,6 +312,7 @@
             var nfills = len >>> 5;
             if (nfills) {
                 this.words[this.nwords-1] += nfills;
+                this.activeWord.end += nfills * 32;
                 len &= 31;
             }
         }
@@ -332,56 +355,79 @@
     CmpBitVec.prototype.and = function(that) {
         checkBitVectorPair(this, that);
 
-        if(this === that) return this;
+        // special case.
+        // TODO: potential for unpredictable behaviour: Usually we return a new CmpBitVec that shouldn't have side-effects when modified. Unless this.equals(that), in which case we return the same CmpBitVec
+        if(this === that || this.equals(that)) return this;
 
-        var res = new CmpBitVec();
+        var res = new CmpBitVec()
+        // use these methods to flag that nextWord should be called on this or that. We need this because nextWord
+        // errors out if there is no available next word
+          , advanceThis = false
+          , advanceThat = false;
+
         this.begin();
         that.begin();
-        while (this.activeWord.offset < this.nwords && that.activeWord.offset < that.nwords) {
+
+        do {
+            // TODO consider moving this can-we-safely-advance-the-word logic into #nextWord
+            if((advanceThis && this.activeWordIsLast())
+              || (advanceThat && that.activeWordIsLast())) {
+              throw new Error('Attempt to advance beyond end of vector');
+            }
+            if(advanceThis) {
+              advanceThis = false;
+              this.nextWord();
+            }
+            if(advanceThat) {
+              advanceThat = false;
+              that.nextWord();
+            }
+
             // advance until words overlap
             while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
             while (that.activeWord.end <= this.activeWord.start) { that.nextWord(); }
             // compare overlapping words
             if (this.activeWord.type === TYPE_0_FILL) { // 0-fill
                 res.appendFill0(this.activeWord.end - res.size);
-                this.nextWord();
+                advanceThis = true;
             }
             else if (this.activeWord.type === TYPE_1_FILL) { // 1-fill
                 if (that.activeWord.type === TYPE_0_FILL) { // 1-fill vs 0-fill
                     res.appendFill0(that.activeWord.end - res.size);
-                    that.nextWord();
+                    advanceThat = true;
                 }
                 else if (that.activeWord.type === TYPE_1_FILL) { // 1-fill vs 1-fill
                     if (this.activeWord.end <= that.activeWord.end) {
                         res.appendFill1(this.activeWord.end - res.size);
-                        this.nextWord();
+                        advanceThis = true;
                     }
                     else {
                         res.appendFill1(that.activeWord.end - res.size);
-                        that.nextWord();
+                        advanceThat = true;
                     }
                 }
                 else if (that.activeWord.type === TYPE_LITERAL) { // 1-fill vs literal
                     res.appendWord(that.words[that.activeWord.offset]);
-                    that.nextWord();
+                    advanceThat = true;
                 }
             }
             else if (this.activeWord.type === TYPE_LITERAL) { // literal
                 if (that.activeWord.type === TYPE_0_FILL) { // literal vs 0-fill
                     res.appendFill0(that.activeWord.end - res.size);
-                    that.nextWord();
+                    advanceThat = true;
                 }
                 else if (that.activeWord.type === TYPE_1_FILL) { // literal vs 1-fill
                     res.appendWord(this.words[this.activeWord.offset]);
-                    this.nextWord();
+                    advanceThis = true;
                 }
                 else if (that.activeWord.type === TYPE_LITERAL) { // literal vs literal
                     res.appendWord(this.words[this.activeWord.offset] & that.words[that.activeWord.offset]);
-                    this.nextWord();
-                    that.nextWord();
+                    advanceThis = true;
+                    advanceThat = true;
                 }
             }
-        }
+        } while(res.size < this.size);
+
         res.pack();
         return res;
     };
