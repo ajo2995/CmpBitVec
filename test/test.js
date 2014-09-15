@@ -555,6 +555,8 @@ describe('CmpBitVec', function () {
       it('should not work with non-CmpBitVec arguments', function() {
         (function() { v1.and(new Date()); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
         (function() { v1.and('sausage'); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+        (function() { v1.and(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+        (function() { v1.and(1); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
       });
       it('should not work with vectors of different length', function() {
         (function() { v1.and(vlong); }).should.throw('Bit vector length mismatch');
@@ -580,18 +582,30 @@ describe('CmpBitVec', function () {
         v10.and(v01).toString().should.equal(v0.toString());
       });
       it('should work with mixed literal and compressed words', function() {
-        console.log({a:v0first, b:v1, c:v0first.and(v1)});
-
         v0first.and(v1first).toString().should.equal(v0.toString());
         v0first.and(v1).toString().should.equal(v0first.toString());
       });
       it('should work with arbitrary mixtures', function() {
         vlit1.and(v1first).toString().should.equal(v0.toString());
         vlit1.and(v0first).toString().should.equal(vlit1.toString());
-      })
-
-    })
-  })
+        vlit1.and(v10).toString().should.equal('11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
+      });
+      it('should correctly size the and-ed result of vectors ending with short literals', function() {
+        v.appendFill1(2);
+        v.appendFill0(2);
+        v2.appendFill1(4);
+        v.and(v2).size.should.equal(v.size);
+        v.and(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+      });
+      it('should correctly size the and-ed result of vectors whose lengths are not multiples of 32', function() {
+        v.appendFill1(68);
+        v2.appendFill1(64);
+        v2.appendFill1(2);
+        v2.appendFill0(2);
+        v.and(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+      });
+    });
+  });
 });
 
 

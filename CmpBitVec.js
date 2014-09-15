@@ -428,6 +428,12 @@
             }
         } while(res.size < this.size);
 
+        // truncate size of result if it's longer than the input. This happens if the last word in the and-ed vectors
+        // are not full. TODO: consider if this can be moved somewhere more sensible in future, e.g. appendWord
+        if(res.size > this.size) {
+          res.size = this.size;
+        }
+
         res.pack();
         return res;
     };
