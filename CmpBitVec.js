@@ -351,6 +351,20 @@
         }
     };
 
+    // TODO consider moving this can-we-safely-advance-the-word logic into #nextWord
+    function possiblyAdvanceToNextWords(thiz, advanceThis, that, advanceThat) {
+      if((advanceThis && thiz.activeWordIsLast())
+        || (advanceThat && that.activeWordIsLast())) {
+        throw new Error('Attempt to advance beyond end of vector');
+      }
+      if(advanceThis) {
+        thiz.nextWord();
+      }
+      if(advanceThat) {
+        that.nextWord();
+      }
+    }
+
     // return the logical AND of two CmpBitVec objects
     CmpBitVec.prototype.and = function(that) {
         checkBitVectorPair(this, that);
@@ -369,19 +383,8 @@
         that.begin();
 
         do {
-            // TODO consider moving this can-we-safely-advance-the-word logic into #nextWord
-            if((advanceThis && this.activeWordIsLast())
-              || (advanceThat && that.activeWordIsLast())) {
-              throw new Error('Attempt to advance beyond end of vector');
-            }
-            if(advanceThis) {
-              advanceThis = false;
-              this.nextWord();
-            }
-            if(advanceThat) {
-              advanceThat = false;
-              that.nextWord();
-            }
+            possiblyAdvanceToNextWords(this, advanceThis, that, advanceThat);
+            advanceThat = advanceThis = false;
 
             // advance until words overlap
             while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
@@ -439,54 +442,70 @@
     };
 
     CmpBitVec.prototype.or = function(that) {
-        var res = new CmpBitVec();
+        checkBitVectorPair(this, that);
+
+        // special case.
+        // TODO: potential for unpredictable behaviour: Usually we return a new CmpBitVec that shouldn't have side-effects when modified. Unless this.equals(that), in which case we return the same CmpBitVec
+        if(this === that || this.equals(that)) return this;
+
+        var res = new CmpBitVec()
+        // use these methods to flag that nextWord should be called on this or that. We need this because nextWord
+        // errors out if there is no available next word
+          , advanceThis = false
+          , advanceThat = false;
+      
         this.begin();
         that.begin();
-        while (this.activeWord.offset < this.nwords && that.activeWord.offset < that.nwords) {
+        do {
+            possiblyAdvanceToNextWords(this, advanceThis, that, advanceThat);
+            advanceThat = advanceThis = false;
+
             // advance until words overlap
             while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
             while (that.activeWord.end <= this.activeWord.start) { that.nextWord(); }
+
             // compare overlapping words
             if (this.activeWord.type === TYPE_0_FILL) { // 0-fill
                 if (that.activeWord.type === TYPE_0_FILL) { // 0-fill vs 0-fill
                     if (this.activeWord.end <= that.activeWord.end) {
                         res.appendFill0(this.activeWord.end - res.size);
-                        this.nextWord();
+                        advanceThis = true;
                     }
                     else {
                         res.appendFill0(that.activeWord.end - res.size);
-                        that.nextWord();
+                        advanceThat = true;
                     }
                 }
                 else if (that.activeWord.type === TYPE_1_FILL) { // 0-fill vs 1-fill
                     res.appendFill1(that.activeWord.end - res.size);
-                    that.nextWord();
+                    advanceThat = true;
                 }
                 else if (that.activeWord.type === TYPE_LITERAL)  { // 0-fill vs literal
                     res.appendWord(that.words[that.activeWord.offset]);
-                    that.nextWord();
+                    advanceThat = true;
                 }
             }
             else if (this.activeWord.type === TYPE_1_FILL) { // 1-fill
                 res.appendWord(this.words[this.activeWord.offset]);
-                this.nextWord();
+                advanceThis = true;
             }
             else if (this.activeWord.type === TYPE_LITERAL) { // literal
                 if (that.activeWord.type === TYPE_0_FILL) { // literal vs 0-fill
                     res.appendWord(this.words[this.activeWord.offset]);
-                    this.nextWord();
+                    advanceThis = true;
                 }
                 else if (that.activeWord.type === TYPE_1_FILL) { // literal vs 1-fill
                     res.appendFill1(that.activeWord.end - res.size);
-                    that.nextWord();
+                    advanceThat = true;
                 }
                 else if (that.activeWord.type === TYPE_LITERAL) { // literal vs literal
                     res.appendWord(this.words[this.activeWord.offset] | that.words[that.activeWord.offset]);
-                    this.nextWord();
-                    that.nextWord();
+                    advanceThis = true;
+                    advanceThat = true;
                 }
             }
-        }
+        } while(res.size < this.size);
+
         res.pack();
         return res;
     };

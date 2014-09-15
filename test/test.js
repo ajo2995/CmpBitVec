@@ -605,6 +605,63 @@ describe('CmpBitVec', function () {
         v.and(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
       });
     });
+    describe('#or', function() {
+      it('should not work with null arguments', function() {
+        (function() { v1.or(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      });
+      it('should not work with non-CmpBitVec arguments', function() {
+        (function() { v1.or(new Date()); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+        (function() { v1.or('sausage'); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+        (function() { v1.or(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+        (function() { v1.or(1); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      });
+      it('should not work with vectors of different length', function() {
+        (function() { v1.or(vlong); }).should.throw('Bit vector length mismatch');
+        (function() { vlong.or(v1); }).should.throw('Bit vector length mismatch');
+      });
+      it('should work for simple case of or with self', function() {
+        v1.or(v1).toString().should.equal(v1.toString());
+      });
+      it('should work with a vector full of zeros', function() {
+        v1.or(v0).toString().should.equal(v1.toString());
+      });
+      it('should work with compressed words to give a vector full of zeros', function() {
+        v10.or(v01).toString().should.equal(v1.toString());
+      });
+      it('should work with literal words', function() {
+        vlit1.or(vlit2).toString().should.equal(v1.toString());
+        vlit1.or(v1).toString().should.equal(v1.toString());
+        vlit1.or(v0).toString().should.equal(vlit1.toString());
+      });
+      it('should work with compressed words to give a vector of compressed words', function() {
+        v10.or(v1).toString().should.equal(v1.toString());
+        v10.or(v10).toString().should.equal(v10.toString());
+        v10.or(v01).toString().should.equal(v1.toString());
+      });
+      it('should work with mixed literal or compressed words', function() {
+        v0first.or(v1first).toString().should.equal(v1.toString());
+        v0first.or(v1).toString().should.equal(v1.toString());
+      });
+      it('should work with arbitrary mixtures', function() {
+//        vlit1.or(v1first).toString().should.equal(v0.toString());
+//        vlit1.or(v0first).toString().should.equal(vlit1.toString());
+//        vlit1.or(v10).toString().should.equal('11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
+      });
+      it('should correctly size the or-ed result of vectors ending with short literals', function() {
+        v.appendFill0(2);
+        v.appendFill1(2);
+        v2.appendFill0(4);
+        v.or(v2).size.should.equal(v.size);
+        v.or(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
+      });
+      it('should correctly size the or-ed result of vectors whose lengths are not multiples of 32', function() {
+        v.appendFill0(68);
+        v2.appendFill1(64);
+        v2.appendFill0(2);
+        v2.appendFill1(2);
+        v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+      });
+    })
   });
 });
 
