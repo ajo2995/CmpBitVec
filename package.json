@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/ajo2995/CmpBitVec",
   "dependencies": {
+    "atob": "^1.1.2",
+    "btoa": "^1.1.2",
     "mocha": "^1.21.4",
     "should": "^4.0.4"
   }

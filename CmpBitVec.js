@@ -1,4 +1,13 @@
 (function() {
+
+    var globals = this.window;
+    if(!globals) {
+      globals = {
+        btoa : require('btoa'),
+        atob : require('atob')
+      }
+    };
+
     // this is a hack to force the javascript interpreter
     // to treat words as 32 bit integers
     var _magic = Int32Array(7);
@@ -50,7 +59,7 @@
 
     // Set active word to the first in the CmpBitVec
     CmpBitVec.prototype.begin = function() {
-        if(this.activeWord.type === TYPE_UNDEFINED) {
+        if(this.size === 0) {
           return; // the CmpBitVec is empty.
         }
         this.activeWord = {
@@ -759,6 +768,29 @@
       throw new Error('Bit vector length mismatch');
     }
   }
+
+  // https://stackoverflow.com/questions/9267899/arraybuffer-to-base64-encoded-string
+  CmpBitVec.bufferToBase64 = function(buffer) {
+    var binary = '';
+    var bytes = new Uint8Array( buffer );
+    var len = bytes.byteLength;
+    for (var i = 0; i < len; i++) {
+      binary += String.fromCharCode( bytes[ i ] )
+    }
+    return globals.btoa( binary );
+  };
+
+  // http://stackoverflow.com/questions/21797299/convert-base64-string-to-arraybuffer
+  CmpBitVec.base64ToBuffer = function(base64) {
+    var binary_string =  globals.atob(base64);
+    var len = binary_string.length;
+    var bytes = new Uint8Array( len );
+    for (var i = 0; i < len; i++)        {
+      var ascii = binary_string.charCodeAt(i);
+      bytes[i] = ascii;
+    }
+    return bytes.buffer;
+  };
 
     module.exports = CmpBitVec;
 }());
