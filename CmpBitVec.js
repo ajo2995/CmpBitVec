@@ -437,7 +437,7 @@
           res.size = this.size;
         }
 
-        res.pack();
+        // res.pack();
         return res;
     };
 
@@ -513,7 +513,108 @@
             res.size = this.size;
         }
 
-        res.pack();
+        // res.pack();
+        return res;
+    };
+
+    CmpBitVec.prototype.xor = function(that) {
+        checkBitVectorPair(this, that);
+
+        // special case.
+        // TODO: potential for unpredictable behaviour: Usually we return a new CmpBitVec that shouldn't have side-effects when modified. Unless this.equals(that), in which case we return the same CmpBitVec
+        if(this === that || this.equals(that)) return this;
+
+        var res = new CmpBitVec()
+        // use these methods to flag that nextWord should be called on this or that. We need this because nextWord
+        // errors out if there is no available next word
+          , advanceThis = false
+          , advanceThat = false;
+
+        this.begin();
+        that.begin();
+
+        do {
+          possiblyAdvanceToNextWords(this, advanceThis, that, advanceThat);
+          advanceThat = advanceThis = false;
+
+          // advance until words overlap
+          while (this.activeWord.end <= that.activeWord.start) { this.nextWord(); }
+          while (that.activeWord.end <= this.activeWord.start) { that.nextWord(); }
+          // compare overlapping words
+          if (this.activeWord.type === TYPE_0_FILL) { // 0-fill
+            if (that.activeWord.type === TYPE_0_FILL) { // 0 xor 0 = 0
+              if (this.activeWord.end <= that.activeWord.end) {
+                res.appendFill0(this.activeWord.end - res.size);
+                advanceThis = true;
+              }
+              else {
+                res.appendFill0(that.activeWord.end - res.size);
+                advanceThat = true;
+              }
+            }
+            else if (that.activeWord.type === TYPE_1_FILL) { // 0 xor 1 = 1
+              if (this.activeWord.end <= that.activeWord.end) {
+                res.appendFill1(this.activeWord.end - res.size);
+                advanceThis = true;
+              }
+              else {
+                res.appendFill1(that.activeWord.end - res.size);
+                advanceThat = true;
+              }
+            }
+            else if (that.activeWord.type === TYPE_LITERAL) { // 0 xor 010101 = 010101
+              res.appendWord(that.words[that.activeWord.offset]);
+              advanceThat = true;
+            }
+          }
+          else if (this.activeWord.type === TYPE_1_FILL) {
+            if (that.activeWord.type === TYPE_0_FILL) { // 1 xor 0 = 1
+              if (this.activeWord.end <= that.activeWord.end) {
+                res.appendFill1(this.activeWord.end - res.size);
+                advanceThis = true;
+              }
+              else {
+                res.appendFill1(that.activeWord.end - res.size);
+                advanceThat = true;
+              }
+            }
+            else if (that.activeWord.type === TYPE_1_FILL) { // 1 xor 1 = 0
+              if (this.activeWord.end <= that.activeWord.end) {
+                res.appendFill0(this.activeWord.end - res.size);
+                advanceThis = true;
+              }
+              else {
+                res.appendFill0(that.activeWord.end - res.size);
+                advanceThat = true;
+              }
+            }
+            else if (that.activeWord.type === TYPE_LITERAL) { // 1111111 xor 010101 = 101010
+              res.appendWord(~that.words[that.activeWord.offset]);
+              advanceThat = true;
+            }
+          }
+          else if (this.activeWord.type === TYPE_LITERAL) {
+            advanceThis = true;
+            if (that.activeWord.type === TYPE_0_FILL) { // 010101 xor 000000 = 010101
+              res.appendWord(this.words[this.activeWord.offset]);
+            }
+            else if (that.activeWord.type === TYPE_1_FILL) { // 010101 xor 111111 = 101010
+              res.appendWord(~this.words[this.activeWord.offset]);
+            }
+            else if (that.activeWord.type === TYPE_LITERAL) {
+              res.appendWord(this.words[this.activeWord.offset] ^ that.words[that.activeWord.offset]);
+              advanceThat = true;
+            }
+          }
+        } while(res.size < this.size);
+
+        // truncate size of result if it's longer than the input. This happens if the last word in the xor-ed vectors
+        // are not full. TODO: consider if this can be moved somewhere more sensible in future, e.g. appendWord
+        if(res.size > this.size) {
+          res.size = this.size;
+        }
+
+        // res.pack();
         return res;
     };
 
@@ -527,17 +628,15 @@
         resi32[2] = this.nwords;
         // flip all the bits in each word
         for(var i=0;i<this.nwords;i++) {
-            if (this.isFill(i)) { //fills[i >>> 5] & i & 31) {
-                // toggle MSB
-                resi32[i+3]  = (this.words[i] < 0) ? this.words[i] & _magic[x7FFFFFFF] : this.words[i] | _magic[x80000000];
-            }
-            else {
-                resi32[i+3] = ~resi32[i+3];
-            }
+          var j = i+3;
+          var wt = this.wordType(i);
+          if (wt === TYPE_0_FILL) resi32[j] = this.words[i] | _magic[x80000000];
+          else if (wt === TYPE_1_FILL) resi32[j] = this.words[i] & _magic[x7FFFFFFF];
+          else if (wt === TYPE_LITERAL) resi32[j] = ~this.words[i];
         }
         // if the last word is a literal word
         // mask flipped bits beyond the end of the vector
-        if (!this.isFill(this.nwords-1) && this.size & 31) {
+        if (!this.isFill(this.nwords-1) && (this.size & 31)) {
             resi32[this.nwords + 2] &= _magic[xFFFFFFFF] >>> (32 - (this.size & 31));
         }
         var result = new CmpBitVec();
