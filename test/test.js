@@ -3,7 +3,7 @@ var CmpBitVec = require('../CmpBitVec')
 
 describe('CmpBitVec', function () {
   var v, v2, v0, v1, v01, v10, vlit1, vlit2, v0first, v1first, vlong, vscan;
-  beforeEach(function(){
+  beforeEach(function () {
     v = new CmpBitVec();
     v.toString().should.equal('<empty>');
 
@@ -100,14 +100,18 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#appendFilln', function() {
-    it('should fail on packed CmpBitVec', function() {
+  describe('#appendFilln', function () {
+    it('should fail on packed CmpBitVec', function () {
       v0.pack();
-      (function() {v0.appendFill0(12);} ).should.throw('Call unpack() on a packed bit vector before attempting to modify it');
-      (function() {v0.appendFill1(12);} ).should.throw('Call unpack() on a packed bit vector before attempting to modify it');
+      (function () {
+        v0.appendFill0(12);
+      } ).should.throw('Call unpack() on a packed bit vector before attempting to modify it');
+      (function () {
+        v0.appendFill1(12);
+      } ).should.throw('Call unpack() on a packed bit vector before attempting to modify it');
     });
 
-    it('should allow muliple successive calls to appendFill0', function() {
+    it('should allow muliple successive calls to appendFill0', function () {
       v.appendFill0(4);
 
       v2.appendFill0(2);
@@ -117,7 +121,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
     });
 
-    it('should allow muliple successive calls to appendFill1', function() {
+    it('should allow muliple successive calls to appendFill1', function () {
       v.appendFill1(4);
 
       v2.appendFill1(2);
@@ -127,7 +131,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
     });
 
-    it('should allow muliple successive calls to appendFill0 over word boundary', function() {
+    it('should allow muliple successive calls to appendFill0 over word boundary', function () {
       v.appendFill0(48);
 
       v2.appendFill0(24);
@@ -137,7 +141,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
     });
 
-    it('should allow muliple successive calls to appendFill1 over word boundary', function() {
+    it('should allow muliple successive calls to appendFill1 over word boundary', function () {
       v.appendFill1(48);
 
       v2.appendFill1(24);
@@ -147,7 +151,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
     });
 
-    it('should allow muliple successive calls to appendFill1 with size a multiple of word length', function() {
+    it('should allow muliple successive calls to appendFill1 with size a multiple of word length', function () {
       v.appendFill1(64);
 
       v2.appendFill1(32);
@@ -159,7 +163,7 @@ describe('CmpBitVec', function () {
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
     });
 
-    it('should allow muliple successive calls to appendFill0 with size a multiple of word length', function() {
+    it('should allow muliple successive calls to appendFill0 with size a multiple of word length', function () {
       v.appendFill0(64);
 
       v2.appendFill0(32);
@@ -172,8 +176,8 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#nextWord, #prevWord, #scan', function() {
-    it('should go to the next word', function() {
+  describe('#nextWord, #prevWord, #scan', function () {
+    it('should go to the next word', function () {
       vscan.activeWord.start.should.equal(0);
       vscan.nextWord();
       vscan.activeWord.start.should.equal(64);
@@ -182,7 +186,7 @@ describe('CmpBitVec', function () {
       vscan.nextWord();
     });
 
-    it('activeWord should be sane after appendFill1', function() {
+    it('activeWord should be sane after appendFill1', function () {
       v.appendFill1(45);
       v.appendFill1(4);
       v.appendFill1(1);
@@ -192,7 +196,7 @@ describe('CmpBitVec', function () {
       v.activeWord.start.should.lessThan(v.activeWord.end);
     });
 
-    it('activeWord should be sane after appendFill0', function() {
+    it('activeWord should be sane after appendFill0', function () {
       v.appendFill0(45);
       v.appendFill0(4);
       v.appendFill0(1);
@@ -243,13 +247,13 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#toString', function() {
-    it('should return "<empty>" for an empty bit vector', function() {
+  describe('#toString', function () {
+    it('should return "<empty>" for an empty bit vector', function () {
 
       v.toString().should.equal('<empty>');
     });
 
-    it('should work for compressed words of exactly 32 bits', function() {
+    it('should work for compressed words of exactly 32 bits', function () {
 
       v.appendFill0(32);
       v.toString().should.equal('00000000 00000000 00000000 00000000');
@@ -258,19 +262,19 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111');
     });
 
-    it('should work for longer compressed words that are multiples of 32', function() {
+    it('should work for longer compressed words that are multiples of 32', function () {
 
       v.appendFill0(96);
       v.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
     });
 
-    it('should work for longer compressed words that are not multiples of 32', function() {
+    it('should work for longer compressed words that are not multiples of 32', function () {
 
       v.appendFill1(33);
       v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxx1');
     });
 
-    it('should work for literal words', function() {
+    it('should work for literal words', function () {
 
       v.appendFill0(3);
       v.appendFill1(4);
@@ -279,7 +283,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('xxxxxxxx xxxxxxxx xxxxx111 01111000');
     });
 
-    it('should work with successive calls to toString with a single word', function() {
+    it('should work with successive calls to toString with a single word', function () {
       var v = new CmpBitVec()
         , stringRep;
       v.appendFill0(3);
@@ -292,7 +296,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal(stringRep);
     });
 
-    it('should work for combinations of compressed and then literal words', function() {
+    it('should work for combinations of compressed and then literal words', function () {
 
       v.appendFill1(45);
       v.appendFill0(4);
@@ -301,7 +305,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('11111111 11111111 11111111 11111111 xxxxxxxx xxx11100 00011111 11111111');
     });
 
-    it('should work with successive calls to toString with >1 word', function() {
+    it('should work with successive calls to toString with >1 word', function () {
       var v = new CmpBitVec()
         , stringRep;
       v.appendFill1(45);
@@ -314,7 +318,7 @@ describe('CmpBitVec', function () {
       v.toString().should.equal(stringRep);
     });
 
-    it('should work for combinations of partially-filled literal and then compressed words', function() {
+    it('should work for combinations of partially-filled literal and then compressed words', function () {
 
       v.appendFill1(1);
       v.appendFill0(1);
@@ -322,15 +326,17 @@ describe('CmpBitVec', function () {
       v.toString().should.equal('11111111 11111111 11111111 11111101 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxx11');
     });
 
-    it('should refuse to print a string of more than 256 bits', function() {
+    it('should refuse to print a string of more than 256 bits', function () {
 
       v.appendFill1(256);
       v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
       v.appendFill0(1);
-      (function() { return v.toString() }).should.throwError('Bit vector too long for string representation. (This length restriction is arbitrary.)');
+      (function () {
+        return v.toString()
+      }).should.throwError('Bit vector too long for string representation. (This length restriction is arbitrary.)');
     });
 
-    it('should preserve original activeWord', function() {
+    it('should preserve original activeWord', function () {
       // given
       var originalActiveWordStart;
       v.appendFill1(45);
@@ -349,21 +355,21 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe('#equals', function() {
-    it('should not flag different array vectors as equal', function() {
+  describe('#equals', function () {
+    it('should not flag different array vectors as equal', function () {
       var arrayOfTestVectors = [v, v2, v0, v1, v10, v01, v0first, v1first, vlit1, vlit2, vlong, vscan];
 
-      for(var i = 0; i < arrayOfTestVectors.length; i++) {
+      for (var i = 0; i < arrayOfTestVectors.length; i++) {
         var a = arrayOfTestVectors[i];
-        for(var j = 0; j < arrayOfTestVectors.length; j++) {
+        for (var j = 0; j < arrayOfTestVectors.length; j++) {
           var b = arrayOfTestVectors[j]
             , correctAnswer = i === j || (i < 2 && j < 2); // the <2 tests are because v and v2 should be equal
-            a.equals(b).should.equal(correctAnswer, 'Comparing ' + i + 'th and ' + j + 'th vectors');
+          a.equals(b).should.equal(correctAnswer, 'Comparing ' + i + 'th and ' + j + 'th vectors');
         }
       }
     });
 
-    it('should work with multiple calls vs single call to Fill0 with compressed words', function() {
+    it('should work with multiple calls vs single call to Fill0 with compressed words', function () {
       v.appendFill0(64);
       v2.appendFill0(32);
       v2.appendFill0(32);
@@ -371,7 +377,7 @@ describe('CmpBitVec', function () {
       v.equals(v2).should.equal(true);
     });
 
-    it('should work with bit vectors assembled from literal words that were assembled using different calls to appendFill', function() {
+    it('should work with bit vectors assembled from literal words that were assembled using different calls to appendFill', function () {
       v.appendFill0(3);
       v.appendFill1(3);
       v.appendFill1(3);
@@ -394,7 +400,7 @@ describe('CmpBitVec', function () {
       v.equals(v2).should.equal(true);
     });
 
-    it('should work in this specific failure case I just identified', function() {
+    it('should work in this specific failure case I just identified', function () {
       v.appendFill0(64);
       v.appendFill0(3);
       v.appendFill1(3);
@@ -408,7 +414,7 @@ describe('CmpBitVec', function () {
       v.equals(v2).should.equal(true);
     });
 
-    it('should work with combination of compressed words and uncompressed words composed using different appendFill calls', function() {
+    it('should work with combination of compressed words and uncompressed words composed using different appendFill calls', function () {
       v.appendFill0(64);
       v.appendFill0(3);
       v.appendFill1(3);
@@ -431,14 +437,14 @@ describe('CmpBitVec', function () {
       v2.appendFill1(1);
       v2.appendFill0(1);
 
-      console.log({a:v, b:v2});
+      console.log({a: v, b: v2});
 
       v.equals(v2).should.equal(true);
     })
   });
 
-  describe('#pack, #unpack, #saveToArrayBuffer, #loadFromArrayBuffer', function() {
-    it('should pack and unpack a simple bit vector', function() {
+  describe('#pack, #unpack, #saveToArrayBuffer, #loadFromArrayBuffer', function () {
+    it('should pack and unpack a simple bit vector', function () {
       v.appendFill0(32);
       v.pack();
 
@@ -456,15 +462,15 @@ describe('CmpBitVec', function () {
       (v.fills instanceof Int32Array).should.equal(false);
     });
 
-    it('should pack empty bit vector', function() {
+    it('should pack empty bit vector', function () {
       v.pack();
 
-      console.log({packed:v, notpacked:v2});
+      console.log({packed: v, notpacked: v2});
 
       v.equals(v2).should.equal(true);
     });
 
-    it('should save and load again without changing', function() {
+    it('should save and load again without changing', function () {
       v1.appendFill1(45);
       v1.appendFill0(4);
       v1.appendFill0(1000);
@@ -476,192 +482,226 @@ describe('CmpBitVec', function () {
     });
   });
 
-  describe("logical operations", function() {
-    describe('#appendWord', function() {
-      it('should fail on packed CmpBitVec', function() {
-        v0.pack();
-        (function() {v0.appendWord(0x00000000);} ).should.throw('Call unpack() on a packed bit vector before attempting to modify it');
-      });
-      it('should append fill0 to vector full of fill0s', function() {
+  describe('#appendWord', function () {
+    it('should fail on packed CmpBitVec', function () {
+      v0.pack();
+      (function () {
         v0.appendWord(0x00000000);
-        v0.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
-      });
-      it('should append fill1 to vector full of fill1s', function() {
-        v1.appendWord(0xFFFFFFFF);
-        v1.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
-      });
-      it('should append fill0 to vector ending with a fill0', function() {
-        v10.appendWord(0x00000000);
-        v10.toString().should.equal('11111111 11111111 11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
-      });
-      it('should append fill1 to vector ending with a fill1', function() {
-        v01.appendWord(0xFFFFFFFF);
-        v01.toString().should.equal('00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
-      });
-      it('should append fill0 to vector ending with a fill1', function() {
-        v1.appendWord(0x00000000);
-        v1.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000 00000000 00000000 00000000');
-      });
-      it('should append fill1 to vector ending with a fill0', function() {
-        v0.appendWord(0xFFFFFFFF);
-        v0.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111');
-      });
-      it('should append fill0 to vector ending with a literal', function() {
-        vlit2.appendWord(0x00000000);
-        vlit2.toString().should.equal('00000000 00000000 11111111 11111111 11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
-      });
-      it('should append fill1 to vector ending with a literal', function() {
-        vlit2.appendWord(0xFFFFFFFF);
-        vlit2.toString().should.equal('00000000 00000000 11111111 11111111 11111111 11111111 00000000 00000000 11111111 11111111 11111111 11111111');
-      });
-      it('should append literal to vector full of zeros', function() {
-        v0.appendWord(0xDEADBEEF);
-        v0.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 11011110 10101101 10111110 11101111');
-      });
-      it('should append literal to vector full of 1s', function() {
-        v1.appendWord(0xDEADBEEF);
-        v1.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11011110 10101101 10111110 11101111');
-      });
-      it('should append literal to full vector of literals', function() {
-        vlit2.appendWord(0xDEADBEEF);
-        vlit2.toString().should.equal('00000000 00000000 11111111 11111111 11111111 11111111 00000000 00000000 11011110 10101101 10111110 11101111');
-      });
-      it('should thow an exception when adding any word to bit vector ending with a partially full vector of literals', function() {
-        var expectedErrorMsg = 'Unsupported operation: Appending a word to bit vector that ends with a partially-full literal vector';
-        (function() { vlong.appendWord(0xDEADBEEF); }).should.throw(expectedErrorMsg);
-        (function() { vlong.appendWord(0x00000000); }).should.throw(expectedErrorMsg);
-        (function() { vlong.appendWord(0x11111111); }).should.throw(expectedErrorMsg);
-      });
-      it('should append fill0 word to empty vector', function() {
-        var empty = new CmpBitVec();
-        empty.appendWord(0x00000000);
-        empty.toString().should.equal('00000000 00000000 00000000 00000000');
-      });
-      it('should append fill1 word to empty vector', function() {
-        var empty = new CmpBitVec();
-        empty.appendWord(0xFFFFFFFF);
-        empty.toString().should.equal('11111111 11111111 11111111 11111111');
-      });
-      it('should append literal word to empty vector', function() {
-        var empty = new CmpBitVec();
-        empty.appendWord(0xDEADBEEF);
-        empty.toString().should.equal('11011110 10101101 10111110 11101111');
-      });
+      } ).should.throw('Call unpack() on a packed bit vector before attempting to modify it');
     });
-    describe('#and', function() {
-      it('should not work with null arguments', function() {
-        (function() { v1.and(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-      });
-      it('should not work with non-CmpBitVec arguments', function() {
-        (function() { v1.and(new Date()); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-        (function() { v1.and('sausage'); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-        (function() { v1.and(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-        (function() { v1.and(1); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-      });
-      it('should not work with vectors of different length', function() {
-        (function() { v1.and(vlong); }).should.throw('Bit vector length mismatch');
-        (function() { vlong.and(v1); }).should.throw('Bit vector length mismatch');
-      });
-      it('should work for simple case of and with self', function() {
-        v1.and(v1).toString().should.equal(v1.toString());
-      });
-      it('should work with a vector full of zeros', function() {
-        v1.and(v0).toString().should.equal(v0.toString());
-      });
-      it('should work with compressed words to give a vector full of zeros', function() {
-        v10.and(v01).toString().should.equal(v0.toString());
-      });
-      it('should work with literal words', function() {
-        vlit1.and(vlit2).toString().should.equal(v0.toString());
-        vlit1.and(v1).toString().should.equal(vlit1.toString());
-        vlit1.and(v0).toString().should.equal(v0.toString());
-      });
-      it('should work with compressed words to give a vector of compressed words', function() {
-        v10.and(v1).toString().should.equal(v10.toString());
-        v10.and(v10).toString().should.equal(v10.toString());
-        v10.and(v01).toString().should.equal(v0.toString());
-      });
-      it('should work with mixed literal and compressed words', function() {
-        v0first.and(v1first).toString().should.equal(v0.toString());
-        v0first.and(v1).toString().should.equal(v0first.toString());
-      });
-      it('should work with arbitrary mixtures', function() {
-        vlit1.and(v1first).toString().should.equal(v0.toString());
-        vlit1.and(v0first).toString().should.equal(vlit1.toString());
-        vlit1.and(v10).toString().should.equal('11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
-      });
-      it('should correctly size the and-ed result of vectors ending with short literals', function() {
-        v.appendFill1(2);
-        v.appendFill0(2);
-        v2.appendFill1(4);
-        v.and(v2).size.should.equal(v.size);
-        v.and(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
-      });
-      it('should correctly size the and-ed result of vectors whose lengths are not multiples of 32', function() {
-        v.appendFill1(68);
-        v2.appendFill1(64);
-        v2.appendFill1(2);
-        v2.appendFill0(2);
-        v.and(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
-      });
+    it('should append fill0 to vector full of fill0s', function () {
+      v0.appendWord(0x00000000);
+      v0.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
     });
-    describe('#or', function() {
-      it('should not work with null arguments', function() {
-        (function() { v1.or(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-      });
-      it('should not work with non-CmpBitVec arguments', function() {
-        (function() { v1.or(new Date()); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-        (function() { v1.or('sausage'); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-        (function() { v1.or(); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-        (function() { v1.or(1); }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
-      });
-      it('should not work with vectors of different length', function() {
-        (function() { v1.or(vlong); }).should.throw('Bit vector length mismatch');
-        (function() { vlong.or(v1); }).should.throw('Bit vector length mismatch');
-      });
-      it('should work for simple case of or with self', function() {
-        v1.or(v1).toString().should.equal(v1.toString());
-      });
-      it('should work with vectors full of ones and zeros', function() {
-        v1.or(v0).toString().should.equal(v1.toString());
-      });
-      it('should work with compressed words to give a vector full of zeros', function() {
-        v10.or(v01).toString().should.equal(v1.toString());
-      });
-      it('should work with literal words', function() {
-        vlit1.or(vlit2).toString().should.equal(v1.toString());
-        vlit1.or(v1).toString().should.equal(v1.toString());
-        vlit1.or(v0).toString().should.equal(vlit1.toString());
-      });
-      it('should work with compressed words to give a vector of compressed words', function() {
-        v10.or(v1).toString().should.equal(v1.toString());
-        v10.or(v10).toString().should.equal(v10.toString());
-        v10.or(v01).toString().should.equal(v1.toString());
-      });
-      it('should work with mixed literal or compressed words', function() {
-        v0first.or(v1first).toString().should.equal(v1.toString());
-        v0first.or(v1).toString().should.equal(v1.toString());
-      });
-      it('should work with arbitrary mixtures', function() {
-        vlit1.or(v1first).toString().should.equal('11111111 11111111 00000000 00000001 00000000 00000000 11111111 11111111');
-        vlit1.or(v0first).toString().should.equal('11111111 11111111 11111111 11111110 11111111 11111111 11111111 11111111');
-        vlit1.or(v10).toString().should.equal('11111111 11111111 11111111 11111111 00000000 00000000 11111111 11111111');
-      });
-      it('should correctly size the or-ed result of vectors ending with short literals', function() {
-        v.appendFill0(2);
-        v.appendFill1(2);
-        v2.appendFill1(4);
-        v.or(v2).size.should.equal(v.size);
-        v.or(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
-      });
-      it('should correctly size the or-ed result of vectors whose lengths are not multiples of 32', function() {
-        v.appendFill1(68);
-        v2.appendFill1(64);
-        v2.appendFill0(2);
-        v2.appendFill1(2);
-        v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
-      });
-    })
+    it('should append fill1 to vector full of fill1s', function () {
+      v1.appendWord(0xFFFFFFFF);
+      v1.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
+    });
+    it('should append fill0 to vector ending with a fill0', function () {
+      v10.appendWord(0x00000000);
+      v10.toString().should.equal('11111111 11111111 11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000');
+    });
+    it('should append fill1 to vector ending with a fill1', function () {
+      v01.appendWord(0xFFFFFFFF);
+      v01.toString().should.equal('00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111');
+    });
+    it('should append fill0 to vector ending with a fill1', function () {
+      v1.appendWord(0x00000000);
+      v1.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 00000000 00000000 00000000 00000000');
+    });
+    it('should append fill1 to vector ending with a fill0', function () {
+      v0.appendWord(0xFFFFFFFF);
+      v0.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 11111111 11111111 11111111 11111111');
+    });
+    it('should append fill0 to vector ending with a literal', function () {
+      vlit2.appendWord(0x00000000);
+      vlit2.toString().should.equal('00000000 00000000 11111111 11111111 11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
+    });
+    it('should append fill1 to vector ending with a literal', function () {
+      vlit2.appendWord(0xFFFFFFFF);
+      vlit2.toString().should.equal('00000000 00000000 11111111 11111111 11111111 11111111 00000000 00000000 11111111 11111111 11111111 11111111');
+    });
+    it('should append literal to vector full of zeros', function () {
+      v0.appendWord(0xDEADBEEF);
+      v0.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 11011110 10101101 10111110 11101111');
+    });
+    it('should append literal to vector full of 1s', function () {
+      v1.appendWord(0xDEADBEEF);
+      v1.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 11011110 10101101 10111110 11101111');
+    });
+    it('should append literal to full vector of literals', function () {
+      vlit2.appendWord(0xDEADBEEF);
+      vlit2.toString().should.equal('00000000 00000000 11111111 11111111 11111111 11111111 00000000 00000000 11011110 10101101 10111110 11101111');
+    });
+    it('should thow an exception when adding any word to bit vector ending with a partially full vector of literals', function () {
+      var expectedErrorMsg = 'Unsupported operation: Appending a word to bit vector that ends with a partially-full literal vector';
+      (function () {
+        vlong.appendWord(0xDEADBEEF);
+      }).should.throw(expectedErrorMsg);
+      (function () {
+        vlong.appendWord(0x00000000);
+      }).should.throw(expectedErrorMsg);
+      (function () {
+        vlong.appendWord(0x11111111);
+      }).should.throw(expectedErrorMsg);
+    });
+    it('should append fill0 word to empty vector', function () {
+      var empty = new CmpBitVec();
+      empty.appendWord(0x00000000);
+      empty.toString().should.equal('00000000 00000000 00000000 00000000');
+    });
+    it('should append fill1 word to empty vector', function () {
+      var empty = new CmpBitVec();
+      empty.appendWord(0xFFFFFFFF);
+      empty.toString().should.equal('11111111 11111111 11111111 11111111');
+    });
+    it('should append literal word to empty vector', function () {
+      var empty = new CmpBitVec();
+      empty.appendWord(0xDEADBEEF);
+      empty.toString().should.equal('11011110 10101101 10111110 11101111');
+    });
+  });
+  describe('#and', function () {
+    it('should not work with null arguments', function () {
+      (function () {
+        v1.and();
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    });
+    it('should not work with non-CmpBitVec arguments', function () {
+      (function () {
+        v1.and(new Date());
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.and('sausage');
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.and();
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.and(1);
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    });
+    it('should not work with vectors of different length', function () {
+      (function () {
+        v1.and(vlong);
+      }).should.throw('Bit vector length mismatch');
+      (function () {
+        vlong.and(v1);
+      }).should.throw('Bit vector length mismatch');
+    });
+    it('should work for simple case of and with self', function () {
+      v1.and(v1).toString().should.equal(v1.toString());
+    });
+    it('should work with a vector full of zeros', function () {
+      v1.and(v0).toString().should.equal(v0.toString());
+    });
+    it('should work with compressed words to give a vector full of zeros', function () {
+      v10.and(v01).toString().should.equal(v0.toString());
+    });
+    it('should work with literal words', function () {
+      vlit1.and(vlit2).toString().should.equal(v0.toString());
+      vlit1.and(v1).toString().should.equal(vlit1.toString());
+      vlit1.and(v0).toString().should.equal(v0.toString());
+    });
+    it('should work with compressed words to give a vector of compressed words', function () {
+      v10.and(v1).toString().should.equal(v10.toString());
+      v10.and(v10).toString().should.equal(v10.toString());
+      v10.and(v01).toString().should.equal(v0.toString());
+    });
+    it('should work with mixed literal and compressed words', function () {
+      v0first.and(v1first).toString().should.equal(v0.toString());
+      v0first.and(v1).toString().should.equal(v0first.toString());
+    });
+    it('should work with arbitrary mixtures', function () {
+      vlit1.and(v1first).toString().should.equal(v0.toString());
+      vlit1.and(v0first).toString().should.equal(vlit1.toString());
+      vlit1.and(v10).toString().should.equal('11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
+    });
+    it('should correctly size the and-ed result of vectors ending with short literals', function () {
+      v.appendFill1(2);
+      v.appendFill0(2);
+      v2.appendFill1(4);
+      v.and(v2).size.should.equal(v.size);
+      v.and(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+    });
+    it('should correctly size the and-ed result of vectors whose lengths are not multiples of 32', function () {
+      v.appendFill1(68);
+      v2.appendFill1(64);
+      v2.appendFill1(2);
+      v2.appendFill0(2);
+      v.and(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+    });
+  });
+  describe('#or', function () {
+    it('should not work with null arguments', function () {
+      (function () {
+        v1.or();
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    });
+    it('should not work with non-CmpBitVec arguments', function () {
+      (function () {
+        v1.or(new Date());
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.or('sausage');
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.or();
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.or(1);
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    });
+    it('should not work with vectors of different length', function () {
+      (function () {
+        v1.or(vlong);
+      }).should.throw('Bit vector length mismatch');
+      (function () {
+        vlong.or(v1);
+      }).should.throw('Bit vector length mismatch');
+    });
+    it('should work for simple case of or with self', function () {
+      v1.or(v1).toString().should.equal(v1.toString());
+    });
+    it('should work with vectors full of ones and zeros', function () {
+      v1.or(v0).toString().should.equal(v1.toString());
+    });
+    it('should work with compressed words to give a vector full of zeros', function () {
+      v10.or(v01).toString().should.equal(v1.toString());
+    });
+    it('should work with literal words', function () {
+      vlit1.or(vlit2).toString().should.equal(v1.toString());
+      vlit1.or(v1).toString().should.equal(v1.toString());
+      vlit1.or(v0).toString().should.equal(vlit1.toString());
+    });
+    it('should work with compressed words to give a vector of compressed words', function () {
+      v10.or(v1).toString().should.equal(v1.toString());
+      v10.or(v10).toString().should.equal(v10.toString());
+      v10.or(v01).toString().should.equal(v1.toString());
+    });
+    it('should work with mixed literal or compressed words', function () {
+      v0first.or(v1first).toString().should.equal(v1.toString());
+      v0first.or(v1).toString().should.equal(v1.toString());
+    });
+    it('should work with arbitrary mixtures', function () {
+      vlit1.or(v1first).toString().should.equal('11111111 11111111 00000000 00000001 00000000 00000000 11111111 11111111');
+      vlit1.or(v0first).toString().should.equal('11111111 11111111 11111111 11111110 11111111 11111111 11111111 11111111');
+      vlit1.or(v10).toString().should.equal('11111111 11111111 11111111 11111111 00000000 00000000 11111111 11111111');
+    });
+    it('should correctly size the or-ed result of vectors ending with short literals', function () {
+      v.appendFill0(2);
+      v.appendFill1(2);
+      v2.appendFill1(4);
+      v.or(v2).size.should.equal(v.size);
+      v.or(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
+    });
+    it('should correctly size the or-ed result of vectors whose lengths are not multiples of 32', function () {
+      v.appendFill1(68);
+      v2.appendFill1(64);
+      v2.appendFill0(2);
+      v2.appendFill1(2);
+      v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
+    });
   });
 });
 
