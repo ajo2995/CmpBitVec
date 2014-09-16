@@ -703,32 +703,12 @@ describe('CmpBitVec', function () {
       v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
     });
   });
+  describe('#not', function() {
+    it('should work', function() {
+      v0.not().equals(v1).should.equal(true);
+      vlit1.not().equals(vlit2).should.equal(true);
+      v0first.not().equals(v1first).should.equal(true);
+      v01.not().equals(v10).should.equal(true);
+    })
+  });
 });
-
-
-/*
- var v1 = new CmpBitVec();
- v1.appendFill1(100);
- v1.appendFill0(100);
- console.log("v1",v1);
- var v2 = new CmpBitVec();
- v2.appendFill0(50);
- v2.appendFill1(150);
- v2.appendFill0(50);
- console.log("v2", v2);
- var v3 = v1.or(v2);
- v3.unpack();
- console.log("v1.or(v2)",v3);
- var v4 = new CmpBitVec();
- v4.appendFill1(200);
- v4.appendFill0(50);
- console.log("correct or",v4);
- v3 = v1.and(v2);
- v3.unpack();
- console.log("v1.and(v2)",v3);
- var v5 = new CmpBitVec();
- v5.appendFill0(50);
- v5.appendFill1(50);
- v5.appendFill0(150);
- console.log("correct and",v5);
- */

@@ -541,7 +541,7 @@
             resi32[this.nwords + 2] &= _magic[xFFFFFFFF] >>> (32 - (this.size & 31));
         }
         var result = new CmpBitVec();
-        result.load(resBuffer);
+        result.loadFromArrayBuffer(resBuffer);
         return result;
     };
 
