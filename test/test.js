@@ -711,4 +711,15 @@ describe('CmpBitVec', function () {
       v01.not().equals(v10).should.equal(true);
     })
   });
+
+  describe.skip('static buffer utils', function() {
+    it('should work', function() {
+      var expected = 'QAAAAAEAAAACAAAAAQAAAAEAAAACAAAA';
+      CmpBitVec.bufferToBase64(v1first.saveToArrayBuffer()).should.equal(expected);
+
+      var other = new CmpBitVec();
+      other.loadFromArrayBuffer(expected);
+      other.toString().should.equal(v1first.toString());
+    });
+  })
 });
