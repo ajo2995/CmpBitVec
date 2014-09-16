@@ -196,7 +196,7 @@
         }
         else if (word === _magic[xFFFFFFFF]) { // 1-fill
             if (this.activeWord.type === TYPE_1_FILL) { // extends previous 1-fill
-                this.words[activeWord.offset]++;
+                this.words[this.activeWord.offset]++;
             }
             else { // append a 1-fill
                 var mod = this.nwords & 31;
@@ -486,7 +486,7 @@
                 }
             }
             else if (this.activeWord.type === TYPE_1_FILL) { // 1-fill
-                res.appendWord(this.words[this.activeWord.offset]);
+                res.appendFill1(this.activeWord.end - res.size);
                 advanceThis = true;
             }
             else if (this.activeWord.type === TYPE_LITERAL) { // literal
@@ -505,6 +505,13 @@
                 }
             }
         } while(res.size < this.size);
+
+
+        // truncate size of result if it's longer than the input. This happens if the last word in the and-ed vectors
+        // are not full. TODO: consider if this can be moved somewhere more sensible in future, e.g. appendWord
+        if(res.size > this.size) {
+            res.size = this.size;
+        }
 
         res.pack();
         return res;

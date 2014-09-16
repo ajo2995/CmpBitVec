@@ -622,7 +622,7 @@ describe('CmpBitVec', function () {
       it('should work for simple case of or with self', function() {
         v1.or(v1).toString().should.equal(v1.toString());
       });
-      it('should work with a vector full of zeros', function() {
+      it('should work with vectors full of ones and zeros', function() {
         v1.or(v0).toString().should.equal(v1.toString());
       });
       it('should work with compressed words to give a vector full of zeros', function() {
@@ -643,23 +643,23 @@ describe('CmpBitVec', function () {
         v0first.or(v1).toString().should.equal(v1.toString());
       });
       it('should work with arbitrary mixtures', function() {
-//        vlit1.or(v1first).toString().should.equal(v0.toString());
-//        vlit1.or(v0first).toString().should.equal(vlit1.toString());
-//        vlit1.or(v10).toString().should.equal('11111111 11111111 00000000 00000000 00000000 00000000 00000000 00000000');
+        vlit1.or(v1first).toString().should.equal('11111111 11111111 00000000 00000001 00000000 00000000 11111111 11111111');
+        vlit1.or(v0first).toString().should.equal('11111111 11111111 11111111 11111110 11111111 11111111 11111111 11111111');
+        vlit1.or(v10).toString().should.equal('11111111 11111111 11111111 11111111 00000000 00000000 11111111 11111111');
       });
       it('should correctly size the or-ed result of vectors ending with short literals', function() {
         v.appendFill0(2);
         v.appendFill1(2);
-        v2.appendFill0(4);
+        v2.appendFill1(4);
         v.or(v2).size.should.equal(v.size);
         v.or(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
       });
       it('should correctly size the or-ed result of vectors whose lengths are not multiples of 32', function() {
-        v.appendFill0(68);
+        v.appendFill1(68);
         v2.appendFill1(64);
         v2.appendFill0(2);
         v2.appendFill1(2);
-        v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+        v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
       });
     })
   });
