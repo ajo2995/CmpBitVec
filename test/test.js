@@ -703,6 +703,77 @@ describe('CmpBitVec', function () {
       v.or(v2).toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxx1111');
     });
   });
+  describe('#xor', function () {
+    it('should not work with null arguments', function () {
+      (function () {
+        v1.xor();
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    });
+    it('should not work with non-CmpBitVec arguments', function () {
+      (function () {
+        v1.xor(new Date());
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.xor('sausage');
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.xor();
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+      (function () {
+        v1.xor(1);
+      }).should.throw('Second bit vector for binary operation is false-y or not a CmpBitVec instance');
+    });
+    it('should not work with vectors of different length', function () {
+      (function () {
+        v1.xor(vlong);
+      }).should.throw('Bit vector length mismatch');
+      (function () {
+        vlong.xor(v1);
+      }).should.throw('Bit vector length mismatch');
+    });
+    it('should work for simple case of xor with self', function () {
+      v1.xor(v1).toString().should.equal(v0.toString());
+    });
+    it('should work with vectors full of ones and zeros', function () {
+      v1.xor(v0).toString().should.equal(v1.toString());
+    });
+    it('should work with compressed words to give a vector full of zeros', function () {
+      v10.xor(v01).toString().should.equal(v1.toString());
+    });
+    it('should work with literal words', function () {
+      vlit1.xor(vlit2).toString().should.equal(v1.toString());
+      vlit1.xor(v1).toString().should.equal(vlit2.toString());
+      vlit1.xor(v0).toString().should.equal(vlit1.toString());
+    });
+    it('should work with compressed words to give a vector of compressed words', function () {
+      v10.xor(v1).toString().should.equal(v01.toString());
+      v10.xor(v10).toString().should.equal(v0.toString());
+      v10.xor(v01).toString().should.equal(v1.toString());
+    });
+    it('should work with mixed literal or compressed words', function () {
+      v0first.xor(v1first).toString().should.equal(v1.toString());
+      v0first.xor(v1).toString().should.equal(v1first.toString());
+    });
+    it('should work with arbitrary mixtures', function () {
+      vlit1.xor(v1first).toString().should.equal('11111111 11111111 00000000 00000001 00000000 00000000 11111111 11111111');
+      vlit1.xor(v0first).toString().should.equal('00000000 00000000 11111111 11111110 11111111 11111111 00000000 00000000');
+      vlit1.xor(v10).toString().should.equal('00000000 00000000 11111111 11111111 00000000 00000000 11111111 11111111');
+    });
+    it('should correctly size the xor-ed result of vectors ending with short literals', function () {
+      v.appendFill0(2);
+      v.appendFill1(2);
+      v2.appendFill1(4);
+      v.xor(v2).size.should.equal(v.size);
+      v.xor(v2).toString().should.equal('xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+    });
+    it('should correctly size the xor-ed result of vectors whose lengths are not multiples of 32', function () {
+      v.appendFill1(68);
+      v2.appendFill1(64);
+      v2.appendFill0(2);
+      v2.appendFill1(2);
+      v.xor(v2).toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 xxxxxxxx xxxxxxxx xxxxxxxx xxxx0011');
+    });
+  });
   describe('#not', function() {
     it('should work', function() {
       v0.not().equals(v1).should.equal(true);

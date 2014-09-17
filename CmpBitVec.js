@@ -530,8 +530,12 @@
         checkBitVectorPair(this, that);
 
         // special case.
-        // TODO: potential for unpredictable behaviour: Usually we return a new CmpBitVec that shouldn't have side-effects when modified. Unless this.equals(that), in which case we return the same CmpBitVec
-        if(this === that || this.equals(that)) return this;
+        // TODO: potential for unpredictable behaviour: Usually we return a new CmpBitVec that shouldn't have side-effects when modified. Unless this.equals(that), in which case we return an all 0 CmpBitVec
+        if(this === that || this.equals(that)) {
+          var zeros = new CmpBitVec();
+          zeros.appendFill0(this.size);
+          return zeros;
+        }
 
         var res = new CmpBitVec()
         // use these methods to flag that nextWord should be called on this or that. We need this because nextWord
@@ -631,7 +635,7 @@
         this.pack();
         // make a copy of the arrayBuffer
         var resBuffer = this.words.buffer.slice(0);
-        var resi32   = new Int32Array(resBuffer);
+        var resi32  = new Int32Array(resBuffer);
         resi32[0] = this.size;
         resi32[1] = this.size - this.count;
         resi32[2] = this.nwords;
@@ -643,10 +647,10 @@
           else if (wt === TYPE_1_FILL) resi32[j] = this.words[i] & _magic[x7FFFFFFF];
           else if (wt === TYPE_LITERAL) resi32[j] = ~this.words[i];
         }
-        // if the last word is a literal word
+        // if the last word is a literal word and does not fill the last word
         // mask flipped bits beyond the end of the vector
-        if (!this.isFill(this.nwords-1) && (this.size & 31)) {
-            resi32[this.nwords + 2] &= _magic[xFFFFFFFF] >>> (32 - (this.size & 31));
+        if ((this.size & 31) && this.wordType(this.nwords-1) === TYPE_LITERAL) {
+            resi32[this.nwords + 2] &= (_magic[xFFFFFFFF] >>> (32 - (this.size & 31)));
         }
         var result = new CmpBitVec();
         result.loadFromArrayBuffer(resBuffer);
