@@ -157,7 +157,7 @@ describe('CmpBitVec', function () {
       v2.appendFill1(32);
       v2.appendFill1(32);
 
-      v2.activeWord.end.should.equal(v1.activeWord.end);
+      v2.activeWord.end.should.equal(v.activeWord.end);
 
       v.toString().should.equal('11111111 11111111 11111111 11111111 11111111 11111111 11111111 11111111', 'One call to appendFill1');
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill1');
@@ -169,7 +169,7 @@ describe('CmpBitVec', function () {
       v2.appendFill0(32);
       v2.appendFill0(32);
 
-      v2.activeWord.end.should.equal(v1.activeWord.end);
+      v2.activeWord.end.should.equal(v.activeWord.end);
 
       v.toString().should.equal('00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000', 'One call to appendFill0');
       v2.toString().should.equal(v2.toString(), 'two calls to appendFill0');
@@ -213,9 +213,7 @@ describe('CmpBitVec', function () {
       v.appendFill0(10);
       v.appendFill1(21);
       v.appendFill0(1);
-      console.log(v);
       v.begin();
-      console.log(v);
 
       v.nextSetBitInclusive().should.equal(10);
       v.nextSetBitInclusive(0).should.equal(10);
@@ -437,7 +435,7 @@ describe('CmpBitVec', function () {
       v2.appendFill1(1);
       v2.appendFill0(1);
 
-      console.log({a: v, b: v2});
+      // console.log({a: v, b: v2});
 
       v.equals(v2).should.equal(true);
     })
@@ -465,7 +463,7 @@ describe('CmpBitVec', function () {
     it('should pack empty bit vector', function () {
       v.pack();
 
-      console.log({packed: v, notpacked: v2});
+      // console.log({packed: v, notpacked: v2});
 
       v.equals(v2).should.equal(true);
     });
