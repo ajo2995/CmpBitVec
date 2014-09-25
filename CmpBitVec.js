@@ -79,10 +79,11 @@
     this.packed = true;
     var i32     = new Int32Array(buf);
     this.size   = i32[0];
-    this.count  = i32[1];
-    this.nwords = i32[2];
-    this.words  = i32.subarray(3, this.nwords+3);
-    this.fills  = i32.subarray(3+this.nwords);
+    var nfills  = i32[1];
+    this.count  = i32[2];
+    this.nwords = i32[3];
+    this.words  = i32.subarray(4, this.nwords+4);
+    this.fills  = i32.subarray(4+this.nwords);
 
     this.begin();
   };
@@ -114,17 +115,18 @@
   CmpBitVec.prototype.pack = function() {
     if (this.packed) { return; }
     var nfills = this.fills.length; // ((this.nwords-1) >>> 5) + 1;
-    var buf = ArrayBuffer(4*(3 + this.nwords + nfills));
+    var buf = ArrayBuffer(4*(4 + this.nwords + nfills));
     this.packed = true;
     var i32     = new Int32Array(buf);
     i32[0]      = this.size;
-    i32[1]      = this.count;
-    i32[2]      = this.nwords;
-    var wordArr = i32.subarray(3, this.nwords+3);
+    i32[1]      = nfills;
+    i32[2]      = this.count;
+    i32[3]      = this.nwords;
+    var wordArr = i32.subarray(4, this.nwords+4);
     wordArr.set(this.words);
     this.words = wordArr;
 
-    var fillArr = i32.subarray(3+this.nwords);
+    var fillArr = i32.subarray(4+this.nwords);
     fillArr.set(this.fills);
     this.fills = fillArr;
 
@@ -135,11 +137,11 @@
   CmpBitVec.prototype.unpack = function() {
     if (this.packed == false) { return; }
     this.packed = false;
-    var nfills = ((this.nwords-1) >>> 5) + 1;
     var i32 = new Int32Array(this.words.buffer);
     this.size = i32[0];
-    this.count = i32[1];
-    this.nwords = i32[2];
+    var nfills = i32[1];
+    this.count = i32[2];
+    this.nwords = i32[3];
     var wordArr = [];
     var fillArr = [];
     for(var i=0; i<this.nwords; i++) {
@@ -630,11 +632,12 @@
         var resBuffer = this.words.buffer.slice(0);
         var resi32  = new Int32Array(resBuffer);
         resi32[0] = this.size;
-        resi32[1] = this.size - this.count;
-        resi32[2] = this.nwords;
+        resi32[1] = this.fills.length;
+        resi32[2] = this.size - this.count;
+        resi32[3] = this.nwords;
         // flip all the bits in each word
         for(var i=0;i<this.nwords;i++) {
-          var j = i+3;
+          var j = i+4;
           var wt = this.wordType(i);
           if (wt === TYPE_0_FILL) resi32[j] = this.words[i] | x80000000;
           else if (wt === TYPE_1_FILL) resi32[j] = this.words[i] & x7FFFFFFF;
@@ -643,7 +646,7 @@
         // if the last word is a literal word and does not fill the last word
         // mask flipped bits beyond the end of the vector
         if ((this.size & 31) && this.wordType(this.nwords-1) === TYPE_LITERAL) {
-            resi32[this.nwords + 2] &= (xFFFFFFFF >>> (WORD_BITS - (this.size & 31)));
+            resi32[this.nwords + 3] &= (xFFFFFFFF >>> (WORD_BITS - (this.size & 31)));
         }
         var result = new CmpBitVec();
         result.loadFromArrayBuffer(resBuffer);
