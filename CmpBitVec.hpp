@@ -3,48 +3,51 @@
 #include <cstdio>
 #include <vector>
 using namespace std;
-#define ZEROFILL 0
-#define ONEFILL 1
-#define LITERAL 2
-#define NONEOFTHEABOVE 3
+#define TYPE_0_FILL 0
+#define TYPE_1_FILL 1
+#define TYPE_LITERAL 2
+#define TYPE_UNDEFINED 3
 
 template <class T>
 class CmpBitVec {
 public:
     CmpBitVec(); // constructor
     CmpBitVec(T *buf); // reconstructor
-    size_t dump(T **buf); // serialize
+    size_t serialize(T **buf); // serialize
+
+    // for sequential access
+    void begin();
+    void end();
+    void nextWord();  // advance to next word
+    void prevWord();
 
     void appendWord(T word); // append uncompressed bits in word
-    void appendFill0(size_t length); // extend the CmpBitVec by length 0 bits
-    void appendFill1(size_t length); // extend the CmpBitVec by length 1 bits
+    void appendBits(size_t runLength, char fillType); // append runLength 0's or 1's.
+
+    // deprecated interface - use appendBits()
+    void appendFill0(size_t runLength) { appendBits(runLength, TYPE_0_FILL); }
+    void appendFill1(size_t runLength) { appendBits(runLength, TYPE_1_FILL); }
+
     void inflateWord(T *word, size_t wordStart); // fills a word with uncompressed bits starting at wordStart (for random access)
     void inflateNextWord(T *word, size_t wordStart); // fills a word with uncompressed bits starting at wordStart (for sequential access)
 
-    void rewind() {firstActiveWord();}
-    bool nextSetBit(size_t *idx); // update idx to the position of the next set bit >= *idx return true on success
+    bool nextSetBitInclusive(size_t *idx);
     
-    uint64_t getSize() { return size; }
-    uint64_t getCount() { return count; }
-    size_t getNWords() { return words.size(); }
-
-    CmpBitVec<T>* operator&(CmpBitVec<T>* rhs);
-    CmpBitVec<T>* operator|(CmpBitVec<T>* rhs);
-    void operator&=(CmpBitVec<T>* rhs);
-    void operator|=(CmpBitVec<T>* rhs);
-    void flip();
-    void andYes(CmpBitVec<T>* rhs);
-    void andNot(CmpBitVec<T>* rhs);
+    CmpBitVec<T>* operator&(CmpBitVec<T>* rhs); // and
+    CmpBitVec<T>* operator|(CmpBitVec<T>* rhs); // or
+    CmpBitVec<T>* operator^(CmpBitVec<T>* rhs); // xor
+    CmpBitVec<T>* operator~();                  // not
 
 
 private:
-    vector<T> words;  // a mix of literal and fill words. MSB of fill words is the type of fill
-    vector<T> isFill; // uncompressed bit vector indicating which words are fills
-    uint64_t count;   // the number of set bits
-    uint64_t size;    // bits in the uncompressed CmpBitVec
-    int nbits;        // number of bits per LITERAL word sizeof(T)*8
-    int shiftby;      // log base 2 of nbits
-    T onefill1;       // e.g., 1000000000000000001
+    vector<T> words; // a mix of literal and fill words. MSB of fill words is the type of fill
+    vector<T> fills; // uncompressed bit vector indicating which words are fills
+    T count;         // the number of set bits
+    T size;          // bits in the uncompressed CmpBitVec
+    T nbits;         // number of bits per LITERAL word sizeof(T)*8
+    T modBits;       // nbits-1
+    T shiftby;       // log base 2 of nbits
+    T oneFill;       // 1000...0000
 
     // extras to enable random access
     bool randomAccess;   // flag indicating whether we have setupRandomAccess()
@@ -52,39 +55,49 @@ private:
     vector<T> fillIdx;   // words[fillIdx[i]] is the ith fill word
     void setupRandomAccess();
 
-    // used for iterating    
-    size_t   activeWordIdx;   // offset in words vector
-    char     activeWordType;  // {ONEFILL, ZEROFILL, LITERAL, NONEOFTHEABOVE}
-    uint64_t activeWordStart; // uncompressed bit position at start of word
-    uint64_t activeWordEnd;   // uncompressed bit position after last bit in a word
+    // used for iterating
+    struct activeWord_t {
+        size_t offset; // offset in words vector
+        size_t start;  // uncompressed bit position at start of word
+        size_t end;    // uncompressed bit position after last bit in a word
+        char   type;   // TYPE_0_FILL, TYPE_1_FILL, TYPE_LITERAL, TYPE_UNDEFINED
+    } activeWord;
 
-    void seek(size_t wordStart); // locate the activeWord that contains wordStart (randomAccess)
-    void scan(size_t wordStart); // sequential scan
+    bool isFill(size_t wordIdx);
+    char wordType(size_t wordIdx);
 
-    void firstActiveWord(); // jump to first word
-    void nextActiveWord();  // advance to next word
+    // helper functions for appendBits()
+    void appendFillWords(size_t n, char fillType);
+    void literalToFill(char fillType);
 
+    void seek(size_t pos); // locate the activeWord that contains pos (randomAccess)
+    void scan(size_t pos); // sequential scan
 };
 
-// overloading find first set bit and count leading zeros gcc functions
+// overloading find first set bit, count leading zeros, and popcount gcc builtin functions
 int my_ffs(unsigned long long x) { return __builtin_ffsll(x); }
 int my_ffs(unsigned long      x) { return __builtin_ffsl (x); }
 int my_ffs(unsigned int       x) { return __builtin_ffs  (x); }
 int my_ctz(unsigned long long x) { return __builtin_ctzll(x); }
 int my_ctz(unsigned long      x) { return __builtin_ctzl (x); }
 int my_ctz(unsigned int       x) { return __builtin_ctz  (x); }
+int my_pop(unsigned long long x) { return __builtin_popcountll(x); }
+int my_pop(unsigned long      x) { return __builtin_popcountl (x); }
+int my_pop(unsigned           x) { return __builtin_popcount  (x); }
 
+// constructor
 template <class T>
 CmpBitVec<T>::CmpBitVec() {
     nbits = sizeof(T)*8;
+    modBits = nbits-1;
+    oneFill = T(1) << modBits;
     shiftby = my_ctz(nbits);
-    onefill1 = ((T)1 << (nbits-1)) | (T)1;
     count = 0;
     size  = 0;
-    activeWordIdx   = 0;
-    activeWordStart = 0;
-    activeWordEnd   = 0;
-    activeWordType  = NONEOFTHEABOVE;
+    activeWord.offset   = 0;
+    activeWord.start = 0;
+    activeWord.end   = 0;
+    activeWord.type  = TYPE_UNDEFINED;
     randomAccess = false;
 }
 
@@ -92,10 +105,11 @@ CmpBitVec<T>::CmpBitVec() {
 template <class T>
 CmpBitVec<T>::CmpBitVec(T *buf) {
     nbits = sizeof(T)*8;
+    modBits = nbits-1;
+    oneFill = T(1) << modBits;
     shiftby = my_ctz(nbits);
-    onefill1 = ((T)1 << (nbits-1)) | (T)1;
-    size_t nwords = buf[0];
-    size_t nfills = buf[1];
+    T nwords = buf[0];
+    T nfills = buf[1];
     size  = buf[2];
     count = buf[3];
     words.resize(nwords);
@@ -104,161 +118,234 @@ CmpBitVec<T>::CmpBitVec(T *buf) {
         fprintf(stderr,"words.size() != nwords %zi %zi\n",words.size(),nwords);
         exit(1);
     }
-    isFill.resize(nfills);
-    memcpy(isFill.data(),buf + 4 + nwords, nfills*sizeof(T));
-    if (isFill.size() != nfills) {
-        fprintf(stderr,"isFill.size() != nfills %zi %zi\n",isFill.size(),nfills);
+    fills.resize(nfills);
+    memcpy(fills.data(),buf + 4 + nwords, nfills*sizeof(T));
+    if (fills.size() != nfills) {
+        fprintf(stderr,"fills.size() != nfills %zi %zi\n",fills.size(),nfills);
         exit(1);
     }
 
-    firstActiveWord();
+    begin();
     randomAccess = false;
 }
 
+// returns true if words[wordIdx] is a fill word
 template <class T>
-void CmpBitVec<T>::firstActiveWord() {
-    activeWordIdx   = 0;
-    activeWordStart = 0;
-    activeWordEnd   = nbits;
-    activeWordType  = LITERAL;
-    if (isFill[0] & (T)1) {
-        if (words[0] >> (nbits-1))
-            activeWordType = ONEFILL;
-        else
-            activeWordType = ZEROFILL;
-        activeWordEnd = words[0] << shiftby;
+bool CmpBitVec<T>::isFill(size_t wordIdx) {
+    if (wordIdx < 0 || wordIdx >= words.size()) {
+        fprintf(stderr,"word out of bounds\n");
+        exit(1);
+    }
+    return ((fills[wordIdx >> shiftby] >> (wordIdx & modBits)) & 1);
+}
+
+// returns the type of words[wordIdx]
+template <class T>
+char CmpBitVec<T>::wordType(size_t wordIdx) {
+    if (isFill(wordIdx)) {
+        return (words[wordIdx] >> modBits) ? TYPE_1_FILL : TYPE_0_FILL;
+    }
+    return TYPE_LITERAL;
+}
+
+// moves activeWord struct to beginning of the vector
+template <class T>
+void CmpBitVec<T>::begin() {
+    activeWord.offset = 0;
+    activeWord.start  = 0;
+    activeWord.end    = nbits;
+    activeWord.type   = wordType(0);
+    if (activeWord.type != TYPE_LITERAL)
+        activeWord.end = words[0] << shiftby;
+}
+
+// moves activeWord struct to the end of the vector
+template <class T>
+void CmpBitVec<T>::end() {
+    activeWord.offset = words.size() - 1;
+    activeWord.type   = wordType(activeWord.offset);
+    if (activeWord.type == TYPE_LITERAL) {
+        activeWord.start  = size & ~modBits;
+        activeWord.end = activeWord.start + nbits;
+    }
+    else {
+        activeWord.end = (size & ~modBits) + nbits;
+        activeWord.start = activeWord.end - (words[activeWord.offset] << shiftby);
     }
 }
 
+// moves activeWord to the next word
 template <class T>
-void CmpBitVec<T>::nextActiveWord() {
-    activeWordIdx++;
-    activeWordStart = activeWordEnd;
-    if (isFill[activeWordIdx >> shiftby] & ((T)1 << (activeWordIdx & (nbits-1)))) {
-        if (words[activeWordIdx] >> (nbits-1))
-            activeWordType = ONEFILL;
-        else
-            activeWordType = ZEROFILL;
-        activeWordEnd += (words[activeWordIdx] << shiftby);
+void CmpBitVec<T>::nextWord() {
+    activeWord.offset++;
+    activeWord.start = activeWord.end;
+    activeWord.type = wordType(activeWord.offset);
+    if (activeWord.type != TYPE_LITERAL)
+        activeWord.end = activeWord.start + (words[activeWord.offset] << shiftby);
+    else
+        activeWord.end = activeWord.start + nbits;
+}
+
+// moves avtiveWord to the previous word
+template <class T>
+void CmpBitVec<T>::prevWord() {
+    if (activeWord.offset == 0) {
+        activeWord.start = 0;
+        activeWord.end = 0;
+        activeWord.type = TYPE_UNDEFINED;
     }
     else {
-        activeWordType  = LITERAL;
-        activeWordEnd += nbits;
+        activeWord.offset--;
+        activeWord.end = activeWord.start;
+        activeWord.type = wordType(activeWord.offset);
+        activeWord.start -= (activeWord.type == TYPE_LITERAL) ? nbits : words[activeWord.offset] << shiftby;
     }
 }
 
 // serialize the CmpBitVec and return the number of words used
 template <class T>
-size_t CmpBitVec<T>::dump(T **buf) {
-    size_t nwords = 4 + words.size() + isFill.size();
+size_t CmpBitVec<T>::serialize(T **buf) {
+    size_t nwords = 4 + words.size() + fills.size();
     *buf = (T *) malloc(sizeof(T)*nwords);
     if (*buf == NULL) {
         fprintf(stderr,"failed to allocate %zi bytes\n",sizeof(T)*nwords);
         exit(4);
     }
     (*buf)[0] = (T) words.size();
-    (*buf)[1] = (T) isFill.size();
+    (*buf)[1] = (T) fills.size();
     (*buf)[2] = (T) size;
     (*buf)[3] = (T) count;
-    memcpy(*buf + 4,                 words.data(),  words.size()*sizeof(T));
-    memcpy(*buf + 4 + words.size(), isFill.data(), isFill.size()*sizeof(T));
+    memcpy(*buf + 4,                words.data(), words.size()*sizeof(T));
+    memcpy(*buf + 4 + words.size(), fills.data(), fills.size()*sizeof(T));
     return nwords;
 }
 
-// count the number of set bits in a word
+// appends a fillType fill word of n*nbits
+// warning: does not modify size or count 
 template <class T>
-int popcount(T v) {
-    v = v - ((v >> 1) & (T)~(T)0/3);                           // temp
-    v = (v & (T)~(T)0/15*3) + ((v >> 2) & (T)~(T)0/15*3);      // temp
-    v = (v + (v >> 4)) & (T)~(T)0/255*15;                      // temp
-    return (v * ((T)~(T)0/255)) >> (sizeof(T) - 1) * CHAR_BIT; // count
+void CmpBitVec<T>::appendFillWords(size_t n, char fillType) {
+    int mod = words.size() & modBits;
+    if (mod)
+        fills[fills.size()-1] |= (T)1 << mod;
+    else
+        fills.push_back((T)1);
+    if (fillType == TYPE_0_FILL)
+        words.push_back((T)n);
+    else
+        words.push_back(oneFill + n);
+    if (activeWord.type != TYPE_UNDEFINED) {
+        activeWord.offset++;
+        activeWord.start = activeWord.end;
+    }
+    activeWord.end += nbits * n;
+    activeWord.type = fillType;
 }
 
-// appends a word shaped uncompressed CmpBitVec
+// appends nbits
 template <class T>
 void CmpBitVec<T>::appendWord(T word) {
-    if (word == (T)0) { // 0-fill
-        if (activeWordType == ZEROFILL) // extends previous 0-fill
-            words[activeWordIdx]++;
-        else { // append a 0-fill
-            int mod = words.size() & (nbits-1);
-            if (mod)
-                isFill[isFill.size()-1] |= (T)1 << mod;
-            else
-                isFill.push_back((T)1);
-            words.push_back((T)1);
-            activeWordType = ZEROFILL;
-        }
-    }
-    else if (word == (T)~(T)0) { // 1-fill
-        if (activeWordType == ONEFILL) // extends previous 1-fill
-            words[activeWordIdx]++;
-        else { // append a 1-fill
-            int mod = words.size() & (nbits-1);
-            if (mod)
-                isFill[isFill.size()-1] |= (T)1 << mod;
-            else
-                isFill.push_back((T)1);
-            words.push_back(onefill1); // ((T)1 << (nbits-1)) | (T)1
-            activeWordType = ONEFILL;
-            count += nbits;
-        }
+    if (word == (T)0) // 0-fill
+        if (activeWord.type == TYPE_0_FILL) // extends previous 0-fill
+            words[activeWord.offset]++;
+        else // append a 0-fill
+            appendFillWords(1, TYPE_0_FILL);
+    else if (word == (T)~(T)0) {// 1-fill
+        if (activeWord.type == TYPE_1_FILL) // extends previous 1-fill
+            words[activeWord.offset]++;
+        else // append a 1-fill
+            appendFillWords(1, TYPE_1_FILL);
+        count += nbits;
     }
     else { // literal
-        if ((words.size() & (nbits-1)) == 0) // need another word in isFill
-            isFill.push_back((T)0);
+        if ((words.size() & modBits) == 0) // need another word in isFill
+            fills.push_back((T)0);
         words.push_back(word);
-        activeWordType = LITERAL;
-        count += popcount(word);
+        activeWord.type = TYPE_LITERAL;
+        count += my_pop(word);
     }
-    activeWordIdx   = words.size()-1;
-    activeWordStart = size;
-    size           += nbits;
-    activeWordEnd   = size;
+    activeWord.offset = words.size()-1;
+    activeWord.start  = size;
+    size             += nbits;
+    activeWord.end    = size;
 }
 
+// converts a homogenous literal to a fill word
+// possibly merging with previous fill word
 template <class T>
-void CmpBitVec<T>::scan(size_t wordStart) {
-    // fprintf(stderr,"scan(%zi) aw: %zi %llu %llu\n",wordStart,activeWordIdx,activeWordStart,activeWordEnd);
-    if ((activeWordStart <= wordStart) && (wordStart < activeWordEnd)) return; // already here
-    while (activeWordEnd <= wordStart) { // seek forward
-        activeWordIdx++;
-        activeWordStart = activeWordEnd;
-        // check if this word is a fill
-        if (isFill[activeWordIdx >> shiftby] & ((T)1 << (activeWordIdx & (nbits-1))))
-            activeWordEnd += (words[activeWordIdx] << shiftby);
-        else
-            activeWordEnd += nbits;
-    }
-    while (activeWordStart > wordStart) { // seek backward
-        activeWordIdx--;
-        activeWordEnd = activeWordStart;
-        // check if this word is a fill
-        // fprintf(stderr,"activeWordIdx: %zi %llu %llu\n",activeWordIdx,activeWordStart,activeWordEnd);
-        if (isFill[activeWordIdx >> shiftby] & ((T)1 << (activeWordIdx & (nbits-1))))
-            activeWordStart -= (words[activeWordIdx] << shiftby);
-        else
-            activeWordStart -= nbits;
-    }
-    // found it. lookup word type
-    activeWordType = LITERAL;
-    if (isFill[activeWordIdx >> shiftby] & ((T)1 << (activeWordIdx & (nbits-1)))) {
-        if (words[activeWordIdx] >> (nbits-1))
-            activeWordType = ONEFILL;
-        else
-            activeWordType = ZEROFILL;
-    }
+void CmpBitVec<T>::literalToFill(char fillType) {
+    words.pop();
+    size -= nbits;
+    if (fillType == TYPE_1_FILL) count -= nbits;
+    if ((words.size() & modBits) == 0) fills.pop();
+    prevWord();
+    appendFillWords(1,fillType);
 }
 
-// iterate over the fill words and populate the vectors fillStart and fillIdx
+// appends runLength bits of the given fillType
+template <class T>
+void CmpBitVec<T>::appendBits(size_t runLength, char fillType) {
+    if (runLength == 0) return;
+    if (fillType == TYPE_1_FILL) count += runLength;
+    if (activeWord.type == TYPE_LITERAL) {
+        int remainingBits = nbits - (size - activeWord.start);
+        if (remainingBits) {
+            if (remainingBits >= runLength) {
+                if (fillType == TYPE_1_FILL) {
+                    int usedBits = nbits - remainingBits;
+                    words[activeWord.offset] |= (((T)1 << runLength) - 1) << usedBits;
+                }
+                size += runLength;
+                return;
+            }
+            if (fillType == TYPE_1_FILL) {
+                int usedBits = nbits - remainingBits;
+                words[activeWord.offset] |= (T)~(T)0 << usedBits; 
+            }
+            if (words[activeWord.offset] == (T)0 || words[activeWord.offset] == (T)~(T)0)
+                literalToFill(fillType);
+            runLength -= remainingBits;
+            size += remainingBits;
+        }
+    }
+    size += runLength;
+    T nfills = (T) runLength >> shiftby;
+    if (nfills > 0) {
+        if (activeWord.type == fillType) {
+            words[activeWord.offset] += nfills;
+            activeWord.end += nbits * nfills;
+        }
+        else
+            appendFillWords(nfills, fillType);
+        runLength &= modBits;
+    }
+    if (runLength > 0) {
+        if ((words & modBits) == 0) fills.push_back((T)0);
+        if (fillType == TYPE_1_FILL) words.push_back((T)~(T)0 >> (nbits - runLength));
+        else words.push_back((T)0);
+        activeWord.start = activeWord.end;
+        activeWord.end += nbits;
+        activeWord.type = TYPE_LITERAL;
+        activeWord.offset = words.size()-1;
+    }
+}
+    
+// sequential scan to locate the word that contains pos
+template <class T>
+void CmpBitVec<T>::scan(size_t pos) {
+    if ((activeWord.start <= pos) && (pos < activeWord.end)) return; // already here
+    while (activeWord.end <= pos) nextWord();
+    while (activeWord.start > pos) prevWord();
+}
+
+// populate the fillStart and fillIdx vectors
+// to support binary search O(lg(fills.size()))
 template <class T>
 void CmpBitVec<T>::setupRandomAccess() {
     // first populate fillIdx
     // fprintf(stderr,"setupRandomAccess()\n");
     T idx=0;
-    int n_fills=0;
     
-    for(typename vector<T>::iterator it = isFill.begin(); it < isFill.end(); it++) {
+    for(typename vector<T>::iterator it = fills.begin(); it < fills.end(); it++) {
         T bits = *it;
         while (bits) {
             fillIdx.push_back(idx + my_ffs(bits) - 1);
@@ -277,42 +364,42 @@ void CmpBitVec<T>::setupRandomAccess() {
     }
     randomAccess = true;
 }
-// assumes random access pattern
+
+// locate the word that contains pos with binary search
 template <class T>
-void CmpBitVec<T>::seek(size_t wordStart) {
-    // fprintf(stderr,"seek(%zi)\n",wordStart);
-    if ((activeWordStart <= wordStart) && (wordStart < activeWordEnd)) return; // already here
+void CmpBitVec<T>::seek(size_t pos) {
+    if ((activeWord.start <= pos) && (pos < activeWord.end)) return; // already here
 
     if (!randomAccess) setupRandomAccess();
 
-    activeWordIdx=0;
-    activeWordStart=0;
+    activeWord.offset=0;
+    activeWord.start=0;
     if(fillStart.size() > 0) {
-        typename vector<T>::iterator ub = upper_bound(fillStart.begin(),fillStart.end(),wordStart);
-        // ub points to first fill word that starts after wordStart or fillStarts.end() if none
-        if (ub != fillStart.begin()) { // there are fill words starting <= wordStart
+        typename vector<T>::iterator ub = upper_bound(fillStart.begin(),fillStart.end(),pos);
+        // ub points to first fill word that starts after pos or fillStarts.end() if none
+        if (ub != fillStart.begin()) { // there are fill words starting <= pos
             ub--;
-            // is wordStart in the previous fill?
-            activeWordIdx = fillIdx[ub - fillStart.begin()];
-            activeWordEnd = *ub + (words[activeWordIdx] << shiftby);
-            if (wordStart < activeWordEnd) {// found it!
-                activeWordStart = *ub;
-                if (words[activeWordIdx] >> (nbits-1))
-                    activeWordType = ONEFILL;
+            // is pos in the previous fill?
+            activeWord.offset = fillIdx[ub - fillStart.begin()];
+            activeWord.end = *ub + (words[activeWord.offset] << shiftby);
+            if (pos < activeWord.end) {// found it!
+                activeWord.start = *ub;
+                if (words[activeWord.offset] >> (nbits-1))
+                    activeWord.type = TYPE_1_FILL;
                 else
-                    activeWordType = ZEROFILL;
+                    activeWord.type = TYPE_0_FILL;
                 return;
             }
-            // wordStart is in the subsequent literal word(s)
-            activeWordStart = activeWordEnd;
-            activeWordIdx++;
+            // pos is in the subsequent literal word(s)
+            activeWord.start = activeWord.end;
+            activeWord.offset++;
         }
     }
-    size_t offset = (wordStart - activeWordStart) >> shiftby;
-    activeWordIdx += offset;
-    activeWordStart += nbits*offset;
-    activeWordEnd = activeWordStart + nbits;
-    activeWordType = LITERAL;
+    size_t offset = (pos - activeWord.start) >> shiftby;
+    activeWord.offset += offset;
+    activeWord.start += nbits*offset;
+    activeWord.end = activeWord.start + nbits;
+    activeWord.type = TYPE_LITERAL;
 }
 
 // fills a word shaped uncompressed CmpBitVec starting at wordStart
@@ -322,9 +409,9 @@ void CmpBitVec<T>::inflateWord(T *word, size_t wordStart) {
         scan(wordStart);
     else
         seek(wordStart);
-    if (activeWordType == LITERAL)
-        *word = words[activeWordIdx];
-    else if (activeWordType == ONEFILL)
+    if (activeWord.type == TYPE_LITERAL)
+        *word = words[activeWord.offset];
+    else if (activeWord.type == TYPE_1_FILL)
         *word = (T)~(T)0;
     else
         *word = (T)0;
@@ -334,414 +421,286 @@ void CmpBitVec<T>::inflateWord(T *word, size_t wordStart) {
 template <class T>
 void CmpBitVec<T>::inflateNextWord(T *word, size_t wordStart) {
     scan(wordStart);
-    if (activeWordType == LITERAL)
-        *word = words[activeWordIdx];
-    else if (activeWordType == ONEFILL)
+    if (activeWord.type == TYPE_LITERAL)
+        *word = words[activeWord.offset];
+    else if (activeWord.type == TYPE_1_FILL)
         *word = (T)~(T)0;
     else
         *word = (T)0;
 }
 
+// replaces idx with the position of the next set bit (returns false if none)
 template <class T>
-bool CmpBitVec<T>::nextSetBit(size_t *idx) {
-    // fprintf(stderr,"nextSetBit(%zi) %zi\n",*idx,size);
+bool CmpBitVec<T>::nextSetBitInclusive(size_t *idx) {
     if (*idx >= size) return false;
     scan(*idx);
-    if (activeWordType == LITERAL) {
-        T word = words[activeWordIdx] & ((T)~(T)0 << (*idx - activeWordStart));
+    if (activeWord.type == TYPE_LITERAL) {
+        T word = words[activeWord.offset] & ((T)~(T)0 << (*idx - activeWord.start));
         if (word == 0) {
-            *idx = activeWordEnd;
-            return nextSetBit(idx);
+            *idx = activeWord.end;
+            return nextSetBitInclusive(idx);
         }
         else {
-            *idx = activeWordStart + my_ctz(word);
+            *idx = activeWord.start + my_ctz(word);
             return true;
         }
     }
-    else if (activeWordType == ONEFILL) return true;
-    else { // if (activeWordType == ZEROFILL) {
-        *idx = activeWordEnd;
-        return nextSetBit(idx);
+    else if (activeWord.type == TYPE_1_FILL) return true;
+    else {
+        *idx = activeWord.end;
+        return nextSetBitInclusive(idx);
     }
     return true;
 }
 
-// extends the CmpBitVec by length 0 bits (assumes previous bit was a 1)
+// logical AND
 template <class T>
-void CmpBitVec<T>::appendFill0(size_t length) {
-    if (activeWordType == LITERAL) { // extend current LITERAL word
-        T remainingBits = nbits - (size - activeWordStart);
-        size += length;
-        if (remainingBits >= length)
-            return;
-        // still more to do
-        length -= remainingBits;
-        if (length) activeWordStart += nbits;
+CmpBitVec<T>* CmpBitVec<T>::operator&(CmpBitVec<T>* that) {
+    if (size != that->size) {
+        fprintf(stderr,"bit vector length mismatch\n");
+        exit(1);
     }
-    else if (activeWordType == ONEFILL)
-        size += length;
-    else if (activeWordType == ZEROFILL) {
-        // extend current zerofill
-        size+=length;
-        T nfills = (T)length >> shiftby;
-        if (nfills) {
-            words[words.size()-1] += nfills;
-            length &= nbits-1;
-        }
-        // fprintf(stderr,"appendFill0 called when activeWordType == ZEROFILL!\n");
-        // exit(5);
-    }
-    else // for the first word
-        size += length;
 
-    T nfills = (T)length >> shiftby;
-    if (nfills) { // append a 0-fill
-        // set a bit in isFill
-        int mod = words.size() & (nbits-1);
-        if (mod)
-            isFill[isFill.size()-1] |= ((T)1 << mod);
-        else
-            isFill.push_back((T)1);
-        words.push_back(nfills);
-        activeWordIdx    = words.size()-1;
-        activeWordType   = ZEROFILL;
-        activeWordStart += (nfills << shiftby);
-        length &= nbits-1;
-    }
-    if (length > 0) {
-        if ((words.size() & (nbits-1)) == 0) isFill.push_back((T)0);
-        words.push_back((T)0);
-        activeWordType   = LITERAL;
-        activeWordIdx    = words.size()-1;
-    }
-}
-// extends the CmpBitVec by length 1 bits (assumes previous bit was a 0)
-template <class T>
-void CmpBitVec<T>::appendFill1(size_t length) {
-    count += length;
-    if (activeWordType == LITERAL) { // extend current LITERAL word
-        int usedBits = size - activeWordStart;
-        int remainingBits = nbits - usedBits;
-        size += length;
-        if (remainingBits) {
-            if (length < remainingBits) {
-                words[activeWordIdx] |= (((T)1 << length) - 1) << usedBits;
-                return;
-            }
-            else
-                words[activeWordIdx] |= (T)~(T)0 << usedBits;
-            length -= remainingBits;
-        }
-        if (length) activeWordStart += nbits;
-    }
-    else if (activeWordType == ZEROFILL) {
-        size += length;
-    }
-    else if (activeWordType == ONEFILL) {
-        // extend current onefill
-        size+=length;
-        T nfills = (T)length >> shiftby;
-        if (nfills) {
-            words[words.size()-1] += nfills;
-            length &= nbits-1;
-        }
-        // fprintf(stderr,"appendFill1 called with activeWordType == ONEFILL\n");
-        // exit(4);
-    }
-    else // for the first word
-        size += length;
-
-    T nfills = ((T)length >> shiftby);
-    if (nfills) { // append a 1-fill
-        // set a bit in isFill
-        int mod = words.size() & (nbits-1);
-        if (mod)
-            isFill[isFill.size()-1] |= ((T)1 << mod);
-        else
-            isFill.push_back((T)1);
-        words.push_back(nfills | ((T)1 << (nbits-1)));
-        activeWordIdx    = words.size()-1;
-        activeWordType   = ONEFILL;
-        activeWordStart += (nfills << shiftby);
-        length &= nbits-1;
-    }
-    if (length > 0) {
-        // set length bits to 1 in literal word
-        if ((words.size() & (nbits-1)) == 0) isFill.push_back((T)0);
-        words.push_back((T)~(T)0 >> (nbits - (int)length));
-        activeWordType = LITERAL;
-        activeWordIdx = words.size()-1;
-    }
-}
-
-template <class T>
-void CmpBitVec<T>::andYes(CmpBitVec<T>* rhs) {
-    // fprintf(stderr,"andYes size %zi count %zi\n",size,count);
     CmpBitVec<T> *res = new CmpBitVec<T>();
-    size_t pos=0;
-    this->firstActiveWord();
-    if (this->nextSetBit(&pos)) {
-        // fprintf(stderr,"nextSetBit() pos: %zi aws %zi %zi\n",pos,activeWordStart,rhs->activeWordStart);
-        if (activeWordStart>0) res->appendFill0(activeWordStart);
-        // There are set bits in this CmpBitVec
-        rhs->seek(activeWordStart);
-        while (activeWordIdx<words.size() and rhs->activeWordIdx < rhs->words.size()) {
-            // advance until words overlap
-            while (activeWordEnd <= rhs->activeWordStart) nextActiveWord();
-            while (rhs->activeWordEnd <= activeWordStart) rhs->nextActiveWord();
-            // compare overlapping words
-            if (activeWordType == LITERAL) {
-                if (rhs->activeWordType == LITERAL)
-                    res->appendWord(words[activeWordIdx] & rhs->words[rhs->activeWordIdx]);
-                else if (rhs->activeWordType == ONEFILL)
-                    res->appendWord(words[activeWordIdx]);
-                else
-                    res->appendFill0(rhs->activeWordEnd - activeWordStart);
-                nextActiveWord();
-            }
-            else if (activeWordType == ONEFILL) {
-                if (rhs->activeWordType == LITERAL) {
-                    res->appendWord(rhs->words[rhs->activeWordIdx]);
-                    rhs->nextActiveWord();
-                }
-                else if (rhs->activeWordType == ONEFILL) {
-                    if (activeWordEnd <= rhs->activeWordEnd) {
-                        res->appendFill1(activeWordEnd - res->size);
-                        nextActiveWord();
-                    }
-                    else {
-                        res->appendFill1(rhs->activeWordEnd - res->size);
-                        rhs->nextActiveWord();
-                    }
-                }
-                else {
-                    res->appendFill0(rhs->activeWordEnd - res->size);
-                    rhs->nextActiveWord();
-                }
-            }
-            else { // ZEROFILL
-                if (activeWordEnd <= rhs->activeWordEnd) {
-                    res->appendFill0(activeWordEnd - res->size);
-                    nextActiveWord();
-                }
-                else {
-                    res->appendFill0(rhs->activeWordEnd - res->size);
-                    rhs->nextActiveWord();
-                }
-            }
-        }        
-    }
-    words.swap(res->words);
-    isFill.swap(res->isFill);
-    count = res->count;
-    size = res->size;
-}
+    bool advanceThis = false;
+    bool advanceThat = false;
 
-template <class T>
-void CmpBitVec<T>::andNot(CmpBitVec<T>* rhs) {
-    // fprintf(stderr,"andNot size %zi count %zi\n",size,count);
-    CmpBitVec<T> *res = new CmpBitVec<T>();
-    size_t pos=0;
-    this->firstActiveWord();
-    if (this->nextSetBit(&pos)) {
-        // fprintf(stderr,"nextSetBit() pos: %zi aws %zi %zi\n",pos,activeWordStart,rhs->activeWordStart);
-        if (activeWordStart>0) res->appendFill0(activeWordStart);
-        // There are set bits in this CmpBitVec
-        rhs->seek(activeWordStart);
-        while (activeWordIdx<words.size() and rhs->activeWordIdx < rhs->words.size()) {
-            // advance until words overlap
-            while (activeWordEnd <= rhs->activeWordStart) nextActiveWord();
-            while (rhs->activeWordEnd <= activeWordStart) rhs->nextActiveWord();
-            // compare overlapping words
-            if (activeWordType == LITERAL) {
-                if (rhs->activeWordType == LITERAL)
-                    res->appendWord(words[activeWordIdx] & ~(rhs->words[rhs->activeWordIdx]));
-                else if (rhs->activeWordType == ZEROFILL)
-                    res->appendWord(words[activeWordIdx]);
-                else
-                    res->appendFill0(rhs->activeWordEnd - activeWordStart);
-                nextActiveWord();
-            }
-            else if (activeWordType == ONEFILL) {
-                if (rhs->activeWordType == LITERAL) {
-                    res->appendWord(~(rhs->words[rhs->activeWordIdx]));
-                    rhs->nextActiveWord();
-                }
-                else if (rhs->activeWordType == ZEROFILL) {
-                    if (activeWordEnd <= rhs->activeWordEnd) {
-                        res->appendFill1(activeWordEnd - res->size);
-                        nextActiveWord();
-                    }
-                    else {
-                        res->appendFill1(rhs->activeWordEnd - res->size);
-                        rhs->nextActiveWord();
-                    }
-                }
-                else {
-                    res->appendFill0(rhs->activeWordEnd - res->size);
-                    rhs->nextActiveWord();
-                }
-            }
-            else { // ZEROFILL
-                if (activeWordEnd <= rhs->activeWordEnd) {
-                    res->appendFill0(activeWordEnd - res->size);
-                    nextActiveWord();
-                }
-                else {
-                    res->appendFill0(rhs->activeWordEnd - res->size);
-                    rhs->nextActiveWord();
-                }
-            }
-        }        
-    }
-    words.swap(res->words);
-    isFill.swap(res->isFill);
-    count = res->count;
-    size = res->size;
-}
+    begin();
+    that->begin();
+    
+    do {
+        if (advanceThis) nextWord();
+        if (advanceThat) that->nextWord();
+        advanceThis = advanceThat = false;
 
-template <class T>
-CmpBitVec<T>* CmpBitVec<T>::operator&(CmpBitVec<T>* rhs) {
-    CmpBitVec<T> *res = new CmpBitVec<T>();
-    firstActiveWord();
-    rhs->firstActiveWord();
-    while (activeWordIdx<words.size() and rhs->activeWordIdx < rhs->words.size()) {
-        // advance until words overlap
-        while (activeWordEnd <= rhs->activeWordStart) nextActiveWord();
-        while (rhs->activeWordEnd <= activeWordStart) rhs->nextActiveWord();
-        // compare overlapping words
-        if (activeWordType == LITERAL) {
-            if (rhs->activeWordType == LITERAL)
-                res->appendWord(words[activeWordIdx] & rhs->words[rhs->activeWordIdx]);
-            else if (rhs->activeWordType == ONEFILL)
-                res->appendWord(words[activeWordIdx]);
-            else
-                res->appendFill0(rhs->activeWordEnd - activeWordStart);
-            nextActiveWord();
+        while (activeWord.end <= that->activeWord.start) nextWord();
+        while (that->activeWord.end <= activeWord.start) that->nextWord();
+
+        if (activeWord.type == TYPE_0_FILL) {
+            res->appendBits(activeWord.end - res->size, TYPE_0_FILL);
+            advanceThis = true;
         }
-        else if (activeWordType == ONEFILL) {
-            if (rhs->activeWordType == LITERAL) {
-                res->appendWord(rhs->words[rhs->activeWordIdx]);
-                rhs->nextActiveWord();
+        else if (activeWord.type == TYPE_1_FILL) {
+            if (that->activeWord.type == TYPE_0_FILL) {
+                res->appendBits(that->activeWord.end - res->size, TYPE_0_FILL);
+                advanceThat = true;
             }
-            else if (rhs->activeWordType == ONEFILL) {
-                if (activeWordEnd <= rhs->activeWordEnd) {
-                    res->appendFill1(activeWordEnd - res->size);
-                    nextActiveWord();
+            else if (that->activeWord.type == TYPE_1_FILL) {
+                if (activeWord.end <= that->activeWord.end) {
+                    res->appendBits(activeWord.end - res->size, TYPE_1_FILL);
+                    advanceThis = true;
                 }
                 else {
-                    res->appendFill1(rhs->activeWordEnd - res->size);
-                    rhs->nextActiveWord();
+                    res->appendBits(that->activeWord.end - res->size, TYPE_1_FILL);
+                    advanceThat = true;
                 }
             }
             else {
-                res->appendFill0(rhs->activeWordEnd - res->size);
-                rhs->nextActiveWord();
+                res->appendWord(that->words[that->activeWord.offset]);
+                advanceThat = true;
             }
         }
-        else { // ZEROFILL
-            if (activeWordEnd <= rhs->activeWordEnd) {
-                res->appendFill0(activeWordEnd - res->size);
-                nextActiveWord();
+        else {
+            if (that->activeWord.type == TYPE_0_FILL) {
+                res->appendBits(that->activeWord.end - res->size, TYPE_0_FILL);
+                advanceThat = true;
+            }
+            else if (that->activeWord.type == TYPE_1_FILL) {
+                res->appendWord(words[activeWord.offset]);
+                advanceThis = true;
             }
             else {
-                res->appendFill0(rhs->activeWordEnd - res->size);
-                rhs->nextActiveWord();
+                res->appendWord(words[activeWord.offset] & that->words[that->activeWord.offset]);
+                advanceThis = true;
+                advanceThat = true;
             }
         }
-    }
+    } while (res->size < size);
+    
+    if (res->size > size)
+        res->size = size;
+
     return res;
 }
 
+// logical OR
 template <class T>
-CmpBitVec<T>* CmpBitVec<T>::operator|(CmpBitVec<T>* rhs) {
+CmpBitVec<T>* CmpBitVec<T>::operator|(CmpBitVec<T>* that) {
+    if (size != that->size) {
+        fprintf(stderr,"bit vector length mismatch\n");
+        exit(1);
+    }
+
     CmpBitVec<T> *res = new CmpBitVec<T>();
-    firstActiveWord();
-    rhs->firstActiveWord();
-    while (activeWordIdx<words.size() and rhs->activeWordIdx < rhs->words.size()) {
-        // advance until words overlap
-        while (activeWordEnd <= rhs->activeWordStart) nextActiveWord();
-        while (rhs->activeWordEnd <= activeWordStart) rhs->nextActiveWord();
-        // compare overlapping words
-        if (activeWordType == LITERAL) {
-            if (rhs->activeWordType == LITERAL)
-                res->appendWord(words[activeWordIdx] | rhs->words[rhs->activeWordIdx]);
-            else if (rhs->activeWordType == ZEROFILL)
-                res->appendWord(words[activeWordIdx]);
-            else
-                res->appendFill1(rhs->activeWordEnd - activeWordStart);
-            nextActiveWord();
-        }
-        else if (activeWordType == ZEROFILL) {
-            if (rhs->activeWordType == LITERAL) {
-                res->appendWord(rhs->words[rhs->activeWordIdx]);
-                rhs->nextActiveWord();
-            }
-            else if (rhs->activeWordType == ZEROFILL) {
-                if (activeWordEnd <= rhs->activeWordEnd) {
-                    res->appendFill0(activeWordEnd - res->size);
-                    nextActiveWord();
+    bool advanceThis = false;
+    bool advanceThat = false;
+
+    begin();
+    that->begin();
+    
+    do {
+        if (advanceThis) nextWord();
+        if (advanceThat) that->nextWord();
+        advanceThis = advanceThat = false;
+
+        while (activeWord.end <= that->activeWord.start) nextWord();
+        while (that->activeWord.end <= activeWord.start) that->nextWord();
+
+        if (activeWord.type == TYPE_0_FILL) {
+            if (that->activeWord.type == TYPE_0_FILL) {
+                if (activeWord.end <= that->activeWord.end) {
+                    res->appendBits(activeWord.end - res->size, TYPE_0_FILL);
+                    advanceThis = true;
                 }
                 else {
-                    res->appendFill0(rhs->activeWordEnd - res->size);
-                    rhs->nextActiveWord();
+                    res->appendBits(that->activeWord.end - res->size, TYPE_0_FILL);
+                    advanceThat = true;
                 }
             }
+            else if (that->activeWord.type == TYPE_1_FILL) {
+                res->appendBits(that->activeWord.end - res->size, TYPE_1_FILL);
+                advanceThat = true;
+            }
             else {
-                res->appendFill1(rhs->activeWordEnd - res->size);
-                rhs->nextActiveWord();
+                res->appendWord(that->words[that->activeWord.offset]);
+                advanceThat = true;
+            }
+            
+        }
+        else if (activeWord.type == TYPE_1_FILL) {
+            res->appendBits(activeWord.end - res->size, TYPE_1_FILL);
+            advanceThis = true;
+        }
+        else {
+            advanceThis = true;
+            if (that->activeWord.type == TYPE_0_FILL)
+                res->appendWord(words[activeWord.offset]);
+            else if (that->activeWord.type == TYPE_1_FILL)
+                res->appendBits(that->activeWord.end - res->size, TYPE_1_FILL);
+            else {
+                res->appendWord(words[activeWord.offset] | that->words[that->activeWord.offset]);
+                advanceThat = true;
             }
         }
-        else { // ONEFILL
-            res->appendFill1(activeWordEnd - res->size);
-            nextActiveWord();
-        }
-    }
+    } while (res->size < size);
+    
+    if (res->size > size)
+        res->size = size;
+
     return res;
 }
 
+// logical XOR
 template <class T>
-void CmpBitVec<T>::operator&=(CmpBitVec<T>* rhs) {
-    CmpBitVec<T>* res = *this & rhs;
-    words.swap(res->words);
-    isFill.swap(res->isFill);
-    count = res->count;
-    size = res->size;
-}
-
-template <class T>
-void CmpBitVec<T>::operator|=(CmpBitVec<T>* rhs) {
-    if (rhs->getSize() == 0) return;
-    if (this->getSize() == 0) {
-        words.swap(rhs->words);
-        isFill.swap(rhs->isFill);
-        count = rhs->count;
-        size = rhs->size;
-        return;
+CmpBitVec<T>* CmpBitVec<T>::operator^(CmpBitVec<T>* that) {
+    if (size != that->size) {
+        fprintf(stderr,"bit vector length mismatch\n");
+        exit(1);
     }
-    CmpBitVec<T>* res = *this | rhs;
-    words.swap(res->words);
-    isFill.swap(res->isFill);
-    count = res->count;
-    size = res->size;
+
+    CmpBitVec<T> *res = new CmpBitVec<T>();
+    bool advanceThis = false;
+    bool advanceThat = false;
+
+    begin();
+    that->begin();
+    
+    do {
+        if (advanceThis) nextWord();
+        if (advanceThat) that->nextWord();
+        advanceThis = advanceThat = false;
+
+        while (activeWord.end <= that->activeWord.start) nextWord();
+        while (that->activeWord.end <= activeWord.start) that->nextWord();
+
+        if (activeWord.type == TYPE_0_FILL) {
+            if (that->activeWord.type == TYPE_0_FILL) {
+                if (activeWord.end <= that->activeWord.end) {
+                    res->appendBits(activeWord.end - res->size, TYPE_0_FILL);
+                    advanceThis = true;
+                }
+                else {
+                    res->appendBits(that->activeWord.end - res->size, TYPE_0_FILL);
+                    advanceThat = true;
+                }
+            }
+            else if (that->activeWord.type == TYPE_1_FILL) {
+                if (activeWord.end <= that->activeWord.end) {
+                    res->appendBits(activeWord.end - res->size, TYPE_1_FILL);
+                    advanceThis = true;
+                }
+                else {
+                    res->appendBits(that->activeWord.end - res->size, TYPE_1_FILL);
+                    advanceThat = true;
+                }
+            }
+            else {
+                res->appendWord(that->words[that->activeWord.offset]);
+                advanceThat = true;
+            }
+        }
+        else if (activeWord.type == TYPE_1_FILL) {
+            if (that->activeWord.type == TYPE_0_FILL) {
+                if (activeWord.end <= that->activeWord.end) {
+                    res->appendBits(activeWord.end - res->size, TYPE_1_FILL);
+                    advanceThis = true;
+                }
+                else {
+                    res->appendBits(that->activeWord.end - res->size, TYPE_1_FILL);
+                    advanceThat = true;
+                }
+            }
+            else if (that->activeWord.type == TYPE_1_FILL) {
+                if (activeWord.end <= that->activeWord.end) {
+                    res->appendBits(activeWord.end - res->size, TYPE_0_FILL);
+                    advanceThis = true;
+                }
+                else {
+                    res->appendBits(that->activeWord.end - res->size, TYPE_0_FILL);
+                    advanceThat = true;
+                }
+            }
+            else {
+                res->appendWord(~that->words[that->activeWord.offset]);
+                advanceThat = true;
+            }
+        }
+        else {
+            advanceThis = true;
+            if (that->activeWord.type == TYPE_0_FILL)
+                res->appendWord(words[activeWord.offset]);
+            else if (that->activeWord.type == TYPE_1_FILL)
+                res->appendWord(~words[activeWord.offset]);
+            else {
+                res->appendWord(words[activeWord.offset] ^ that->words[that->activeWord.offset]);
+                advanceThat = true;
+            }
+        }
+    } while (res->size < size);
+    
+    if (res->size > size)
+        res->size = size;
+
+    return res;
 }
 
+// logical NOT
 template <class T>
-void CmpBitVec<T>::flip() {
-    // iterate over the words
-    // flip fill words by toggling MSB
-    // flip literal words with XOR ~0
-    T allones = ~(T)0;
-    T one2zero = allones >> 1;
-    T zero2one = ~one2zero;
-    for(size_t i=0;i<words.size();i++)
-        if(isFill[i >> shiftby] & ((T)1 << (i & (nbits-1))))
-            if (words[i] >> (nbits-1)) // one-fill
-                words[i] &= one2zero;
-            else
-                words[i] |= zero2one;
+CmpBitVec<T>* CmpBitVec<T>::operator~() {
+    CmpBitVec<T> *res = new CmpBitVec<T>();
+    res->size = size;
+    res->count = size - count;
+    res->words = words;
+    res->fills = fills;
+    for (size_t w = 0; w < words.size(); w++) {
+        char t = wordType(w);
+        if (t == TYPE_0_FILL)
+            res->words[w] = words[w] | oneFill;
+        else if (t == TYPE_1_FILL)
+            res->words[w] = words[w] & ~oneFill;
         else
-            words[i] ^= allones;
+            res->words[w] = ~words[w];
+    }
 }
 
 #endif

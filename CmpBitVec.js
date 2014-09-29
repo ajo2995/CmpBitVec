@@ -53,7 +53,8 @@
   CmpBitVec.prototype.wordType = function(i) {
     if (this.isFill(i)) {
       // if it's fill, all bits are set the same. So we just check the most significant bit.
-      return ((this.words[i] & x80000000) === x80000000) ? TYPE_1_FILL : TYPE_0_FILL;
+      // return ((this.words[i] & x80000000) === x80000000) ? TYPE_1_FILL : TYPE_0_FILL;
+      return (this.words[i] >>> 31) ? TYPE_1_FILL : TYPE_0_FILL;
     }
     return TYPE_LITERAL;
   };
@@ -262,6 +263,7 @@
       else { // append a 1-fill
         this.appendFillWords(TYPE_1_FILL, 1);
       }
+      this.count += WORD_BITS;
     }
     else { // non-trivial literal
       if ((this.nwords & 31) === 0) {
