@@ -10,7 +10,7 @@
 
   // this is a hack to force the javascript interpreter
   // to treat words as 32 bit integers
-  var _magic = Int32Array(7);
+  var _magic = new Int32Array(7);
   _magic[0] = 0x00000000; var x00000000 = _magic[0];
   _magic[1] = 0xFFFFFFFF; var xFFFFFFFF = _magic[1];
   _magic[2] = 0x80000000; var x80000000 = _magic[2];
@@ -116,7 +116,7 @@
   CmpBitVec.prototype.pack = function() {
     if (this.packed) { return; }
     var nfills = this.fills.length; // ((this.nwords-1) >>> 5) + 1;
-    var buf = ArrayBuffer(4*(4 + this.nwords + nfills));
+    var buf = new ArrayBuffer(4*(4 + this.nwords + nfills));
     this.packed = true;
     var i32     = new Int32Array(buf);
     i32[0]      = this.size;
